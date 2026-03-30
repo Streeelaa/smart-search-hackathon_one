@@ -16,7 +16,7 @@ from app.synonyms import get_synonym_map
 
 st.set_page_config(
     page_title="Умный поиск — zakupki.mos.ru",
-    page_icon="🔍",
+    page_icon="�",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -686,7 +686,7 @@ def main() -> None:
     st.markdown(
         """
         <div class="hero-card">
-            <h1>🔍 Умный поиск &mdash; zakupki.mos.ru</h1>
+            <h1>Умный поиск &mdash; zakupki.mos.ru</h1>
             <p>Correction → Synonyms → Semantic (E5-large) → Rerank (BGE-v2-m3) → LTR (LightGBM) → Персонализация</p>
         </div>
         """,
@@ -699,8 +699,8 @@ def main() -> None:
     rr_st = reranker.status()
     sem_icon = "🟢" if sem_st.ready else "🔴"
     rr_icon = "🟢" if rr_st.ready else "🔴"
-    st.sidebar.markdown(f"Semantic: {sem_icon} {sem_st.backend}")
-    st.sidebar.markdown(f"Reranker: {rr_icon} {rr_st.backend}")
+    st.sidebar.caption(f"Semantic: {sem_icon} {sem_st.backend}")
+    st.sidebar.caption(f"Reranker: {rr_icon} {rr_st.backend}")
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("Быстрый профиль:")

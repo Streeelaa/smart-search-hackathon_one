@@ -1,5 +1,9 @@
 from dataclasses import dataclass
+import hashlib
+import json
+import logging
 import os
+from pathlib import Path
 
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -7,9 +11,11 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from app.repository import repository
 
+logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL_NAME = os.getenv("SEMANTIC_MODEL_NAME", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+DEFAULT_MODEL_NAME = os.getenv("SEMANTIC_MODEL_NAME", "intfloat/multilingual-e5-large")
 DEFAULT_BACKEND = os.getenv("SEMANTIC_BACKEND", "auto").lower()
+CACHE_DIR = Path(os.getenv("EMBEDDING_CACHE_DIR", Path(__file__).resolve().parent.parent / ".cache"))
 
 
 @dataclass
@@ -59,8 +65,10 @@ class SemanticSearchEngine:
             return []
 
         if self.backend == "transformer":
+            # E5 models require "query: " prefix for queries
+            encoded_query = f"query: {query}" if "e5" in self.model_name.lower() else query
             query_vector = self._model.encode(
-                [query],
+                [encoded_query],
                 convert_to_numpy=True,
                 normalize_embeddings=True,
                 show_progress_bar=False,
@@ -92,16 +100,54 @@ class SemanticSearchEngine:
         self._semantic_texts = []
         self._matrix = None
 
+    # --- Embedding cache ---
+
+    def _cache_key(self) -> str:
+        content = json.dumps(self._semantic_texts, ensure_ascii=False, sort_keys=True)
+        data_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
+        model_slug = self.model_name.replace("/", "_")
+        return f"{model_slug}_{data_hash}"
+
+    def _load_cached_embeddings(self) -> np.ndarray | None:
+        cache_path = CACHE_DIR / f"{self._cache_key()}.npy"
+        if cache_path.exists():
+            try:
+                matrix = np.load(cache_path)
+                if matrix.shape[0] == len(self._semantic_texts):
+                    logger.info("Loaded cached embeddings from %s", cache_path)
+                    return matrix
+            except Exception:
+                pass
+        return None
+
+    def _save_cached_embeddings(self, matrix: np.ndarray) -> None:
+        try:
+            CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            cache_path = CACHE_DIR / f"{self._cache_key()}.npy"
+            np.save(cache_path, matrix)
+            logger.info("Saved embeddings cache to %s", cache_path)
+        except Exception:
+            pass
+
     def _build_transformer_index(self) -> None:
         from sentence_transformers import SentenceTransformer
 
         self._model = SentenceTransformer(self.model_name)
-        self._matrix = self._model.encode(
-            self._semantic_texts,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
+
+        cached = self._load_cached_embeddings()
+        if cached is not None:
+            self._matrix = cached
+        else:
+            # E5 models require "passage: " prefix for documents
+            texts = [f"passage: {t}" for t in self._semantic_texts] if "e5" in self.model_name.lower() else self._semantic_texts
+            self._matrix = self._model.encode(
+                texts,
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+                show_progress_bar=False,
+            )
+            self._save_cached_embeddings(self._matrix)
+
         self._vectorizer = None
         self.backend = "transformer"
         self.last_error = None

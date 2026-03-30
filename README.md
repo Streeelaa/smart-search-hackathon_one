@@ -1,68 +1,143 @@
-# Smart Search Hackathon
+# Умный поиск продукции — zakupki.mos.ru
 
-MVP backend на FastAPI для персонализированного поиска по каталогу продукции.
+Персонализированная поисковая система для портала закупок Москвы.
+Гибридный поиск с коррекцией опечаток, раскрытием синонимов, семантическим пониманием запросов и персонализацией по истории пользователя.
 
-## Что уже есть
+## Ключевые возможности
 
-- keyword-поиск с нормализацией текста
-- correction layer для опечаток
-- внешний словарь синонимов в data/synonyms.json
-- внешний каталог товаров в data/catalog.json
-- логирование событий пользователя
-- динамический профиль пользователя
-- персонализированное ранжирование
-- semantic retrieval
-- гибридный поиск: keyword + semantic
-- rerank-слой поверх retrieval-кандидатов
-- переключаемое хранилище: memory или SQLAlchemy
-- fallback с sentence-transformers на TF-IDF, если модель не загрузилась
-- встроенная оценка качества поиска на демо-кейсах
+| Возможность | Описание |
+|---|---|
+| Коррекция опечаток | монитр -> монитор (rapidfuzz + difflib) |
+| Синонимы и жаргон | системник -> системный блок, ПК, компьютер, десктоп |
+| Аббревиатуры | МФУ -> многофункциональное устройство, ИБП -> UPS |
+| Морфология | ноутбуки = ноутбук = ноутбуков (pymorphy3) |
+| Семантический поиск | E5-large (1024-dim), multilingual |
+| Реранкинг | BGE-reranker-v2-m3 cross-encoder + heuristic fallback |
+| LTR (Learning to Rank) | LightGBM lambdarank на 9 фичах |
+| Персонализация | Профили на основе кликов, покупок, избранного |
+| Гибридный режим | keyword + semantic + rerank + LTR + personalization |
+| Кеширование | SHA256-based .npy cache эмбеддингов |
 
-## Структура
+## Данные
 
-- main.py — точка входа
-- app/api.py — эндпоинты FastAPI
-- app/schemas.py — Pydantic-схемы
-- app/repository.py — in-memory данные, события и профили
-- app/settings.py — конфигурация через переменные окружения
-- app/db.py — SQLAlchemy engine и инициализация БД
-- app/db_models.py — SQLAlchemy-модели для товаров и событий
-- app/search.py — keyword, hybrid и персонализированное ранжирование
-- app/semantic.py — semantic retrieval и fallback-индексация
-- app/reranker.py — rerank top-кандидатов с fallback на heuristic scoring
-- app/demo_scenarios.py — готовые сценарии показа для жюри
-- streamlit_app.py — интерактивный веб-интерфейс для демо
-- data/synonyms.json — редактируемая база синонимов
-- data/catalog.json — редактируемый каталог демо-товаров
-- docs/bpmn.md — BPMN-черновик бизнес-процесса
-- docs/demo-script.md — готовый сценарий демонстрации
-- docs/presentation-outline.md — структура презентации
+- Каталог: 170 товаров в 18 категориях
+- Синонимы: 136 групп (аббревиатуры, жаргон, разговорные формы)
+- События: 543 пользовательских события от 5 профилей
+- Evaluation: 20 тестовых кейсов, 5 метрик (Hit@3, MRR@10, NDCG@10, Precision@3, Recall@10)
+- Demo-сценарии: 5 готовых сценариев для жюри
 
-## Запуск
+## Архитектура (Pipeline)
+
+```
+Запрос пользователя
+  |
+[1] Токенизация + морфологическая нормализация (pymorphy3)
+  |
+[2] Коррекция опечаток (rapidfuzz, score_cutoff=78)
+  |
+[3] Расширение синонимами (136 групп из data/synonyms.json)
+  |
+[4] Параллельный retrieval:
+    - Keyword: лексический скоринг по полям (title x3, aliases x2.7, tags x2)
+    - Semantic: cosine similarity через E5-large эмбеддинги
+  |
+[5] Reranking (BGE cross-encoder или heuristic fallback)
+  |
+[6] LTR boost (LightGBM lambdarank, 9 features)
+  |
+[7] Персонализация (category/tag affinity + ценовая близость)
+  |
+Ранжированные результаты
+```
+
+## Технологический стек
+
+- Backend: FastAPI + Uvicorn
+- Frontend: Streamlit (интерактивный demo UI)
+- Семантика: sentence-transformers (intfloat/multilingual-e5-large, 1024-dim)
+- Реранкер: cross-encoder (BAAI/bge-reranker-v2-m3)
+- LTR: LightGBM lambdarank
+- Морфология: pymorphy3 (LRU кеш 4096 токенов)
+- Нечёткий поиск: rapidfuzz
+- Хранилище: In-memory / SQLAlchemy (SQLite / PostgreSQL)
+- Тесты: pytest (34 теста)
+
+## Структура проекта
+
+```
+main.py                  - Точка входа (uvicorn)
+streamlit_app.py         - Web UI для демо
+requirements.txt
+app/
+  api.py                 - FastAPI endpoints
+  schemas.py             - Pydantic модели
+  search.py              - Гибридный поиск + персонализация
+  semantic.py            - E5-large с кешированием
+  reranker.py            - BGE cross-encoder / heuristic
+  ltr.py                 - LightGBM Learning-to-Rank
+  text_processing.py     - Токенизация, морфология, коррекция
+  synonyms.py            - Расширение синонимами
+  repository.py          - In-memory / SQL хранилище
+  evaluation.py          - 20 кейсов, 5 метрик
+  demo_scenarios.py      - 5 demo-сценариев
+  ingestion.py           - Импорт каталогов и событий
+  settings.py            - Переменные окружения
+  db.py / db_models.py   - SQLAlchemy
+  catalog_loader.py      - Загрузка каталога
+data/
+  catalog.json           - 170 товаров
+  synonyms.json          - 136 групп синонимов
+  sample_events.json     - 543 события
+models/
+  ltr_model.txt          - Обученная LTR модель
+tests/
+  test_search.py         - 34 pytest теста
+scripts/
+  train_ltr.py           - Обучение LTR модели
+  generate_catalog.py    - Генерация каталога
+  generate_synonyms.py   - Генерация синонимов
+  generate_events.py     - Генерация событий
+  smoke_test.py          - Быстрая проверка
+docs/
+  bpmn.md
+  demo-script.md
+  presentation-outline.md
+```
+
+## Быстрый старт
 
 ```bash
-venv\Scripts\activate.bat
+# Активация виртуального окружения
+venv\Scripts\activate.bat    # Windows
+source venv/bin/activate     # Linux/Mac
+
+# Установка зависимостей
+pip install -r requirements.txt
+
+# Запуск API-сервера
 uvicorn main:app --reload
-```
 
-Swagger UI: http://127.0.0.1:8000/docs
-
-Для демо-интерфейса Streamlit:
-
-```bash
+# Запуск Web UI (в отдельном терминале)
 streamlit run streamlit_app.py
+
+# Запуск тестов
+pytest tests/ -v
+
+# Обучение LTR модели
+python scripts/train_ltr.py
 ```
+
+- API Swagger: http://127.0.0.1:8000/docs
+- Streamlit UI: http://localhost:8501
 
 ## Основные эндпоинты
 
 - GET /health
 - GET /catalog/items
-- GET /catalog/items/{item_id}
 - GET /search?q=ноутбук&user_id=user-1&mode=hybrid
 - GET /search/synonyms
 - GET /search/semantic/status
 - GET /search/reranker/status
-- GET /storage/status
 - POST /admin/import/catalog
 - POST /admin/import/events
 - POST /events
@@ -77,110 +152,22 @@ streamlit run streamlit_app.py
 - semantic — только semantic retrieval
 - hybrid — объединение keyword и semantic слоя
 
-## Примеры
+## Переменные окружения
 
-```bash
-curl http://127.0.0.1:8000/health
-curl "http://127.0.0.1:8000/search?q=ноут&user_id=user-1&mode=hybrid"
-curl "http://127.0.0.1:8000/search?q=настольный%20компьютер&mode=semantic"
-curl http://127.0.0.1:8000/search/synonyms
-curl http://127.0.0.1:8000/search/semantic/status
-curl http://127.0.0.1:8000/search/reranker/status
-curl http://127.0.0.1:8000/storage/status
-curl -X POST http://127.0.0.1:8000/admin/import/catalog ^
-  -H "Content-Type: application/json" ^
-  -d "{\"path\":\"data/catalog.json\",\"replace_existing\":true}"
-curl -X POST http://127.0.0.1:8000/admin/import/events ^
-  -H "Content-Type: application/json" ^
-  -d "{\"path\":\"data/sample_events.json\",\"replace_existing\":false}"
-curl -X POST http://127.0.0.1:8000/events ^
-  -H "Content-Type: application/json" ^
-  -d "{\"user_id\":\"user-1\",\"event_type\":\"click\",\"item_id\":6}"
-curl http://127.0.0.1:8000/users/user-1/profile
-curl http://127.0.0.1:8000/metrics/evaluate
-curl http://127.0.0.1:8000/metrics/compare
-```
+- STORAGE_BACKEND=memory|sql
+- DATABASE_URL=sqlite:///path/to/db
+- SEED_DEMO_DATA=true|false
+- SEMANTIC_BACKEND=auto|tfidf
+- SEMANTIC_MODEL_NAME=intfloat/multilingual-e5-large
+- RERANKER_BACKEND=heuristic|auto|cross-encoder
+- RERANKER_MODEL_NAME=BAAI/bge-reranker-v2-m3
+- EMBEDDING_CACHE_DIR=.cache
+- LTR_MODEL_PATH=models/ltr_model.txt
 
-## Как расширять словарь
+## Масштабирование
 
-Открой data/synonyms.json и добавляй новые ключи и варианты без изменения Python-кода.
-
-Пример:
-
-```json
-"сканер": ["сканирующее устройство", "scan"]
-```
-
-## Как расширять каталог
-
-Открой data/catalog.json и добавляй новые товары в виде JSON-объектов. После перезапуска сервера они попадут в поиск.
-
-## Импорт реальных данных
-
-Сервис умеет загружать каталог и события из JSON или CSV через admin-endpoints.
-
-Для каталога ожидаются колонки или поля вроде:
-
-- id, item_id, product_id
-- sku, ste_id, code
-- title, name, product_name
-- category
-- description
-- price
-- tags
-- aliases
-
-Для событий ожидаются поля:
-
-- user_id
-- event_type
-- item_id или product_id
-- query
-
-Остальные поля из CSV автоматически складываются в attributes или metadata.
-
-## Нейросетевая модель
-
-Сейчас semantic-слой пытается использовать модель sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2.
-
-Почему выбрана она:
-
-- быстрее и легче для MVP, чем крупные retrieval-модели
-- хорошо подходит для русско-английских коротких запросов
-- проще для первого локального запуска
-
-Если модель не загрузится, сервис автоматически переключится на TF-IDF fallback и продолжит работать.
-
-Для локальной разработки можно управлять поведением через переменные окружения:
-
-- STORAGE_BACKEND=memory — текущее in-memory хранилище
-- STORAGE_BACKEND=sql — хранение в БД через SQLAlchemy
-- DATABASE_URL=sqlite:///C:/path/to/smart_search.db — локальная SQLite база
-- DATABASE_URL=postgresql+psycopg://user:password@host:5432/dbname — PostgreSQL
-- SEED_DEMO_DATA=true — автоматически засеять демо-данные при пустой БД
-
-- SEMANTIC_BACKEND=tfidf — не пытаться качать нейросетевую модель
-- SEMANTIC_BACKEND=auto — сначала попытаться загрузить модель, потом fallback
-- SEMANTIC_MODEL_NAME=<model_id> — подставить другой Hugging Face model id
-
-Для reranker доступны такие же настройки:
-
-- RERANKER_BACKEND=heuristic — безопасный локальный режим без скачивания модели
-- RERANKER_BACKEND=auto — попытаться загрузить cross-encoder, иначе fallback
-- RERANKER_BACKEND=cross-encoder — принудительно использовать cross-encoder
-- RERANKER_MODEL_NAME=<model_id> — подставить другой reranker model id
-
-Если захочешь усилить качество, следующая замена модели:
-
-1. BAAI/bge-m3
-2. intfloat/multilingual-e5-large-instruct
-
-## Что дальше
-
-Следующий этап для усиления MVP:
-
-1. загрузить реальные данные организаторов в текущий pipeline
-2. заменить in-memory хранилище на PostgreSQL
-3. при необходимости заменить retrieval и rerank на более сильные модели
-4. подготовить BPMN и презентационный сценарий
-5. финально отполировать demo-flow для жюри
+- PostgreSQL через STORAGE_BACKEND=sql
+- Redis для кеша горячих запросов
+- Elasticsearch/OpenSearch для >100к товаров
+- GPU inference (sentence-transformers автоматически используют CUDA)
+- Kubernetes: stateless FastAPI горизонтально масштабируется

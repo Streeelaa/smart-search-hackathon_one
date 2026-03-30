@@ -1,17 +1,2717 @@
 [
   {
-    "user_id": "user-3",
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 122
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 75
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 12
+  },
+  {
+    "user_id": "user-5",
     "event_type": "search",
-    "query": "системник для офиса"
+    "query": "коммутатор 24 порта"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 5
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 91
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "огнетушитель"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 134
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 151
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 123
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 87
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 46
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 101
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 50
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 126
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 163
   },
   {
     "user_id": "user-3",
     "event_type": "click",
-    "item_id": 7
+    "item_id": 68
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "огнетушитель"
   },
   {
     "user_id": "user-3",
     "event_type": "purchase",
-    "item_id": 7
+    "item_id": 27
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 102
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "планшет apple"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 131
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 9
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 148
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 5
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "purchase",
+    "item_id": 140
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 110
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 105
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "роутер wifi"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 62
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 118
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 12
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "точка доступа wifi"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 71
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "favorite",
+    "item_id": 109
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 27
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 85
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 22
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 107
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 101
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 85
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 160
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 109
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "канцтовары"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "стеллаж металлический"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 51
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 46
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 36
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 75
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 27
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 37
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 117
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 8
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 47
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "purchase",
+    "item_id": 132
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "ноутбук для офиса"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 102
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "папка регистратор"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 105
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 1
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "favorite",
+    "item_id": 4
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 19
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 128
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 2
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 107
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "purchase",
+    "item_id": 88
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 101
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "внешний ssd samsung"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 130
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "purchase",
+    "item_id": 89
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 37
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 125
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 124
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 93
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "ибп серверный"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 91
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 101
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 75
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 36
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 165
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 19
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 60
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "лицензия office"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 139
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 82
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "кулер для воды"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 92
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "лицензия office"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 5
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "планшет apple"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "видеорегистратор"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 44
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 37
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 136
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "favorite",
+    "item_id": 47
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 161
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 62
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 130
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "ламинатор"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 130
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "ноутбук для офиса"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 15
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 44
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 163
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 46
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "purchase",
+    "item_id": 94
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 9
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 110
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 22
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 69
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 165
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 45
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 125
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 37
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "монитор 4k"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 71
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "purchase",
+    "item_id": 135
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 85
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 101
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 160
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "кулер для воды"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "офисное кресло"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 58
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 133
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 139
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "вешалка напольная"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 12
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 124
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 148
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 75
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "кофемашина"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 106
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 3
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "коммутатор 24 порта"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 60
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "purchase",
+    "item_id": 107
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 34
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 3
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "favorite",
+    "item_id": 44
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "ноут lenovo"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 15
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 50
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 47
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 80
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 130
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 57
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 27
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 46
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "бумага для принтера"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 13
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "ноутбук премиум"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 93
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "favorite",
+    "item_id": 105
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 34
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "монитор 27"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "ибп серверный"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 108
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 49
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "ручки шариковые"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "плёнка для ламинирования"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 85
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 13
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 125
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "светильник офисный"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 49
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "антивирус касперский"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "ноут lenovo"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 134
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 69
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "лампочки led"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 35
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "ноутбук для офиса"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 161
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 12
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 160
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 80
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 168
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "шкаф для документов"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "файлы а4"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "видеорегистратор"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 132
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 102
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 102
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 1
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 25
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 36
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 133
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 5
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 69
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 122
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "purchase",
+    "item_id": 163
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "favorite",
+    "item_id": 168
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "purchase",
+    "item_id": 165
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 82
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "огнетушитель"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 165
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 58
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 60
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "антивирус касперский"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "серверный шкаф"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 5
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 91
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 13
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "ноут lenovo"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 157
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 138
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 3
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 134
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 168
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 8
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 2
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "ноутбук премиум"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "ибп серверный"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 86
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 85
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "purchase",
+    "item_id": 108
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 101
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 15
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 105
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 139
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 114
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 37
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 46
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "ламинатор"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "конференц-телефон"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 140
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 139
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 37
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 168
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "тонер brother"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 151
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "кабель-канал"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 93
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 19
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 45
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 124
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 113
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 27
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "ручки шариковые"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "ноутбук премиум"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 18
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "кофемашина"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 49
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 34
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "бумага а4"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 85
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 18
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 78
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 34
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 168
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "favorite",
+    "item_id": 12
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 109
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "скуд контроллер"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "favorite",
+    "item_id": 101
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 134
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 27
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 82
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "халат рабочий"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 105
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "папка регистратор"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 71
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 168
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 83
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "ноут lenovo"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "стол угловой"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 2
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 148
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 85
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 91
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 108
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 5
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 80
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 34
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 168
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 160
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 12
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 58
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 69
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 151
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 87
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 37
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "шкаф для документов"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 43
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 161
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "кулер для воды"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 45
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 92
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 161
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "favorite",
+    "item_id": 34
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "аптечка первой помощи"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 140
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 75
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 136
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 92
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "антивирус касперский"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 5
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 4
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 83
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 170
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 47
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 102
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 88
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 132
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 45
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 105
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 134
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 2
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 1
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "огнетушитель"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 87
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 157
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 50
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 124
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 43
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 24
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "монитор 27"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 117
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 86
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "корзина для мусора"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "монитор 4k"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 138
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 2
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "purchase",
+    "item_id": 165
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 138
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 49
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 124
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 75
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 85
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 160
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 163
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 134
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 111
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 49
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 35
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 151
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 30
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 18
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 58
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 80
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 133
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "рация"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 62
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 101
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "аптечка первой помощи"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 13
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 14
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 121
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "канцтовары"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 109
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "ламинатор"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 88
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 160
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "favorite",
+    "item_id": 44
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 78
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 168
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 159
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 140
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 163
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 133
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 124
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 69
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "ноут lenovo"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 60
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 111
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 22
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 91
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 37
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "тонер brother"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 73
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 37
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 22
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 136
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 130
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "кресло руководителя"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 13
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 15
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "коммутатор 8 портов"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 140
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 87
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 76
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 163
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "шкаф для документов"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 113
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 168
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "смартфон samsung"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 159
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "кофемашина"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 110
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "ip телефон"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 27
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "кондиционер"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 14
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "внешний ssd samsung"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 151
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 85
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "ноут lenovo"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 134
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "стол угловой"
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 109
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 87
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "purchase",
+    "item_id": 136
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 5
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 46
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "стеллаж металлический"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 58
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 58
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "корзина для мусора"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 87
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 148
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 102
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 148
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "favorite",
+    "item_id": 34
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "бумага а4"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 78
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "смартфон samsung"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 43
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 165
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 111
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 93
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 12
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 139
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 135
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 5
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 30
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 117
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 94
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 46
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 148
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "favorite",
+    "item_id": 69
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 110
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 124
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "роутер wifi"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 117
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 135
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 76
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 1
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 165
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 85
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 58
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 73
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 133
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 109
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 132
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 114
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 157
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 5
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 122
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "ибп для компьютера"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "камера видеонаблюдения"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 3
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 126
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 159
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 4
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 128
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 118
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 27
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "сканер планшетный"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "favorite",
+    "item_id": 27
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "search",
+    "query": "офисное кресло"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 136
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 85
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 165
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 22
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 87
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "антивирус касперский"
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 35
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "проектор для конференц-зала"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 94
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 75
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 60
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 157
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "favorite",
+    "item_id": 109
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 128
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 22
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 162
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 124
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "search",
+    "query": "ноутбук премиум"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "калькулятор настольный"
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "favorite",
+    "item_id": 5
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "purchase",
+    "item_id": 8
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 133
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 108
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 139
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 50
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 109
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 75
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 118
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "тонер brother"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 14
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "purchase",
+    "item_id": 51
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 37
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "click",
+    "item_id": 3
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 44
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 116
+  },
+  {
+    "user_id": "user-1",
+    "event_type": "search",
+    "query": "патч-корд"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 111
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 140
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 24
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 51
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 134
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "click",
+    "item_id": 9
+  },
+  {
+    "user_id": "user-2",
+    "event_type": "click",
+    "item_id": 68
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 138
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 75
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 15
+  },
+  {
+    "user_id": "user-4",
+    "event_type": "purchase",
+    "item_id": 105
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 132
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "search",
+    "query": "скуд контроллер"
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "click",
+    "item_id": 93
+  },
+  {
+    "user_id": "user-5",
+    "event_type": "favorite",
+    "item_id": 132
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "антивирус касперский"
   }
 ]

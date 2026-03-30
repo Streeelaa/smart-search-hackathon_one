@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from app.text_processing import normalize_query
 
 
-DEFAULT_RERANKER_MODEL = os.getenv("RERANKER_MODEL_NAME", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+DEFAULT_RERANKER_MODEL = os.getenv("RERANKER_MODEL_NAME", "BAAI/bge-reranker-v2-m3")
 DEFAULT_RERANKER_BACKEND = os.getenv("RERANKER_BACKEND", "heuristic").lower()
 
 

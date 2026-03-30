@@ -5,12 +5,37 @@ from app.search import search_products
 
 
 EVALUATION_CASES = [
-    {"query": "ноут", "user_id": "user-1", "expected_ids": [1, 6]},
-    {"query": "ноутбук lenovo", "user_id": "user-1", "expected_ids": [1]},
-    {"query": "мфу hp", "user_id": "user-2", "expected_ids": [2]},
-    {"query": "монитр", "user_id": None, "expected_ids": [4]},
-    {"query": "офисная бумага", "user_id": None, "expected_ids": [5]},
-    {"query": "эргономичный стул", "user_id": None, "expected_ids": [3]},
+    # Базовый лексический поиск
+    {"query": "ноут", "user_id": "user-1", "expected_ids": [1, 2, 3, 5, 6, 8]},
+    {"query": "ноутбук lenovo", "user_id": "user-1", "expected_ids": [1, 6, 9]},
+    {"query": "мфу hp", "user_id": "user-3", "expected_ids": [13]},
+    # Опечатки
+    {"query": "монитр", "user_id": None, "expected_ids": [28, 29, 30, 31, 32, 33, 34]},
+    {"query": "притнер", "user_id": None, "expected_ids": [13, 14, 15, 16, 17, 18, 20, 21]},
+    # Синонимы и жаргон
+    {"query": "системник", "user_id": None, "expected_ids": [35, 36, 37, 38]},
+    {"query": "бесперебойник", "user_id": None, "expected_ids": [92, 93]},
+    {"query": "копир", "user_id": None, "expected_ids": [13, 14, 16, 18, 21]},
+    # Канцелярия
+    {"query": "офисная бумага", "user_id": None, "expected_ids": [68, 69, 70]},
+    {"query": "бумага а4", "user_id": "user-2", "expected_ids": [68, 69]},
+    # Мебель
+    {"query": "эргономичный стул", "user_id": None, "expected_ids": [43, 45]},
+    {"query": "стол для офиса", "user_id": None, "expected_ids": [46, 47, 48]},
+    # Периферия
+    {"query": "веб-камера", "user_id": None, "expected_ids": [60, 61]},
+    {"query": "наушники с микрофоном", "user_id": None, "expected_ids": [62, 63]},
+    # Безопасность
+    {"query": "камера видеонаблюдения", "user_id": "user-5", "expected_ids": [133]},
+    # ПО
+    {"query": "антивирус", "user_id": "user-3", "expected_ids": [113]},
+    {"query": "виндовс лицензия", "user_id": None, "expected_ids": [112]},
+    # Сети
+    {"query": "wifi роутер", "user_id": None, "expected_ids": [85, 86]},
+    # Серверы
+    {"query": "сервер dell", "user_id": "user-1", "expected_ids": [96]},
+    # Импортозамещение
+    {"query": "российский ноутбук", "user_id": None, "expected_ids": [166, 167]},
 ]
 
 

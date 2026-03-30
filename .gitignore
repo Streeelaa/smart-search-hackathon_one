@@ -7,4 +7,5 @@ smart_search.db
 *.db
 *.sqlite3
 .pytest_cache/
+.cache/
 .mypy_cache/

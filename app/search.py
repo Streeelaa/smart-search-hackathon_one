@@ -1,3 +1,4 @@
+from app.ltr import extract_features, ltr_ranker
 from app.repository import repository
 from app.reranker import reranker
 from app.schemas import Product, SearchMode, SearchResponse, SearchResult, UserProfile
@@ -186,6 +187,27 @@ def search_products(query: str, limit: int = 10, user_id: str | None = None, mod
         candidates_for_rerank.append((product, final_score, deduped_reasons[:6]))
 
     reranked = reranker.rerank(query=semantic_query, candidates=candidates_for_rerank, top_k=limit)
+
+    # LightGBM learned-to-rank boost (if model is available)
+    if ltr_ranker.ready and reranked:
+        import numpy as np
+        query_tokens = normalize_query(corrected_query or query)
+        features_list = []
+        for product, score, reasons in reranked:
+            lex_sc = lexical_candidates.get(product.id, (0.0, []))[0]
+            sem_sc = semantic_scores.get(product.id, 0.0)
+            pers_sc, _ = personalization_score(product, profile)
+            feat = extract_features(product, query_tokens, lex_sc, sem_sc, pers_sc, profile)
+            features_list.append(feat)
+        ltr_scores = ltr_ranker.predict(np.array(features_list, dtype=np.float32))
+        reranked_with_ltr = []
+        for (product, base_score, reasons), ltr_sc in zip(reranked, ltr_scores, strict=True):
+            boosted = base_score + float(ltr_sc) * 2.0
+            updated_reasons = reasons + [f"LTR boost: {float(ltr_sc):.2f}"]
+            reranked_with_ltr.append((product, boosted, updated_reasons))
+        reranked_with_ltr.sort(key=lambda item: item[1], reverse=True)
+        reranked = reranked_with_ltr
+
     reranked = apply_result_cutoff(reranked, mode=mode)
     results: list[SearchResult] = [
         SearchResult(product=product, score=round(score, 3), reasons=reasons[:5])

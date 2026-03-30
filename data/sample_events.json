@@ -1,0 +1,17 @@
+[
+  {
+    "user_id": "user-3",
+    "event_type": "search",
+    "query": "системник для офиса"
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "click",
+    "item_id": 7
+  },
+  {
+    "user_id": "user-3",
+    "event_type": "purchase",
+    "item_id": 7
+  }
+]

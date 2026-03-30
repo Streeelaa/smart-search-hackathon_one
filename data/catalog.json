@@ -1,0 +1,112 @@
+[
+  {
+    "id": 1,
+    "sku": "STE-0001",
+    "title": "Ноутбук Lenovo ThinkBook 15",
+    "category": "ноутбуки",
+    "description": "Офисный ноутбук для закупок, документооборота и видеоконференций.",
+    "price": 68990.0,
+    "tags": ["ноутбук", "lenovo", "офис", "15 дюймов"],
+    "aliases": ["лэптоп", "ноут", "рабочий ноутбук"],
+    "attributes": {"brand": "Lenovo", "cpu": "Intel Core i5", "ram": "16 GB"}
+  },
+  {
+    "id": 2,
+    "sku": "STE-0002",
+    "title": "МФУ лазерное HP LaserJet Pro",
+    "category": "оргтехника",
+    "description": "Многофункциональное устройство для печати, сканирования и копирования.",
+    "price": 32990.0,
+    "tags": ["мфу", "принтер", "сканер", "hp", "лазерный"],
+    "aliases": ["копир", "многофункциональное устройство", "лазерный принтер"],
+    "attributes": {"brand": "HP", "type": "laser", "color": "mono"}
+  },
+  {
+    "id": 3,
+    "sku": "STE-0003",
+    "title": "Офисное кресло эргономичное Metta",
+    "category": "мебель",
+    "description": "Кресло с поддержкой поясницы для длительной работы сотрудников.",
+    "price": 21990.0,
+    "tags": ["кресло", "офис", "эргономика", "мебель"],
+    "aliases": ["офисный стул", "эргономичное кресло"],
+    "attributes": {"brand": "Metta", "material": "mesh"}
+  },
+  {
+    "id": 4,
+    "sku": "STE-0004",
+    "title": "Монитор Samsung 27 дюймов IPS",
+    "category": "мониторы",
+    "description": "Монитор для рабочих мест с IPS-матрицей и тонкими рамками.",
+    "price": 24990.0,
+    "tags": ["монитор", "samsung", "27 дюймов", "ips"],
+    "aliases": ["дисплей", "экран"],
+    "attributes": {"brand": "Samsung", "diagonal": "27", "panel": "IPS"}
+  },
+  {
+    "id": 5,
+    "sku": "STE-0005",
+    "title": "Бумага офисная А4 Svetocopy 500 листов",
+    "category": "канцелярия",
+    "description": "Белая бумага формата A4 для ежедневной офисной печати.",
+    "price": 490.0,
+    "tags": ["бумага", "а4", "канцелярия", "печать"],
+    "aliases": ["офисная бумага", "бумага для принтера"],
+    "attributes": {"brand": "Svetocopy", "format": "A4"}
+  },
+  {
+    "id": 6,
+    "sku": "STE-0006",
+    "title": "Ноутбук ASUS ExpertBook B1",
+    "category": "ноутбуки",
+    "description": "Надежный ноутбук для государственных и корпоративных закупок.",
+    "price": 71990.0,
+    "tags": ["ноутбук", "asus", "офис", "business"],
+    "aliases": ["ноут", "лэптоп", "бизнес ноутбук"],
+    "attributes": {"brand": "ASUS", "cpu": "Intel Core i5", "ram": "16 GB"}
+  },
+  {
+    "id": 7,
+    "sku": "STE-0007",
+    "title": "Системный блок iRu Office",
+    "category": "компьютеры",
+    "description": "Настольный компьютер для оснащения рабочих мест сотрудников.",
+    "price": 54990.0,
+    "tags": ["системный блок", "компьютер", "пк", "офис"],
+    "aliases": ["системник", "настольный компьютер"],
+    "attributes": {"brand": "iRu", "cpu": "Intel Core i5", "ram": "16 GB"}
+  },
+  {
+    "id": 8,
+    "sku": "STE-0008",
+    "title": "Клавиатура Logitech K120",
+    "category": "периферия",
+    "description": "Проводная клавиатура для офисных рабочих мест.",
+    "price": 1590.0,
+    "tags": ["клавиатура", "logitech", "периферия"],
+    "aliases": ["keyboard"],
+    "attributes": {"brand": "Logitech", "connection": "USB"}
+  },
+  {
+    "id": 9,
+    "sku": "STE-0009",
+    "title": "Мышь Logitech B100",
+    "category": "периферия",
+    "description": "Компьютерная мышь для повседневной офисной работы.",
+    "price": 890.0,
+    "tags": ["мышь", "мышка", "logitech", "периферия"],
+    "aliases": ["компьютерная мышь"],
+    "attributes": {"brand": "Logitech", "connection": "USB"}
+  },
+  {
+    "id": 10,
+    "sku": "STE-0010",
+    "title": "Wi-Fi роутер Keenetic Start",
+    "category": "сети",
+    "description": "Маршрутизатор для организации доступа в сеть в небольшом офисе.",
+    "price": 4490.0,
+    "tags": ["роутер", "маршрутизатор", "wifi", "сеть"],
+    "aliases": ["wifi роутер"],
+    "attributes": {"brand": "Keenetic", "frequency": "2.4 GHz"}
+  }
+]

@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.vscode/
+smart_search.db
+*.db
+*.sqlite3
+.pytest_cache/
+.mypy_cache/

@@ -231,6 +231,34 @@ def inject_styles() -> None:
             color: #2c5282; padding: 0.2rem 0.55rem; border-radius: 999px;
             font-size: 0.78rem; font-weight: 600;
         }
+
+        /* Sidebar: white text on dark background */
+        [data-testid="stSidebar"] {
+            background: #1e2a33 !important;
+        }
+        [data-testid="stSidebar"] * {
+            color: #e8ecef !important;
+        }
+        [data-testid="stSidebar"] .stButton > button {
+            background: linear-gradient(135deg, #3a5a52 0%, #4a6b62 100%) !important;
+            color: #f0f5f3 !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        }
+        [data-testid="stSidebar"] .stButton > button:hover {
+            background: linear-gradient(135deg, #4a6b62 0%, #5a7b72 100%) !important;
+            color: #ffffff !important;
+        }
+        [data-testid="stSidebar"] .stButton > button p {
+            color: #f0f5f3 !important;
+        }
+        [data-testid="stSidebar"] h3,
+        [data-testid="stSidebar"] h2,
+        [data-testid="stSidebar"] h1 {
+            color: #ffffff !important;
+        }
+        [data-testid="stSidebar"] hr {
+            border-color: rgba(255, 255, 255, 0.15) !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -363,7 +391,7 @@ def render_demo_scenarios_tab() -> None:
     with st.form("demo_quick_search_form"):
         demo_query = st.text_input("Введите запрос", value=st.session_state.get("demo_query", ""))
         top_cols = st.columns([2, 1])
-        demo_limit = top_cols[0].number_input("Сколько результатов", min_value=1, max_value=100, value=5, step=1, key="demo-limit")
+        demo_limit = top_cols[0].number_input("Сколько результатов", min_value=1, max_value=500, value=5, step=1, key="demo-limit")
         show_advanced = top_cols[1].checkbox("Расширенные настройки", value=False, key="demo-show-advanced")
 
         demo_user_id = ""
@@ -508,7 +536,7 @@ def render_search_tab() -> None:
         cols = st.columns(4)
         mode = cols[0].selectbox("Режим", options=["keyword", "semantic", "hybrid"], index=2)
         user_id = cols[1].selectbox("Пользователь", options=options, format_func=lambda u: format_user_label(u) if u else "— без —", index=1 if len(options) > 1 else 0)
-        limit = cols[2].number_input("Лимит", min_value=1, max_value=100, value=5, step=1)
+        limit = cols[2].number_input("Лимит", min_value=1, max_value=500, value=5, step=1)
         compare_modes = cols[3].checkbox("Сравнить режимы", value=True)
         submitted = st.form_submit_button("🔎 Запустить поиск")
 
@@ -707,11 +735,12 @@ def main() -> None:
     for uid in list_user_ids():
         if st.sidebar.button(format_user_label(uid), key=f"sb-{uid}", use_container_width=True):
             st.session_state["selected_user_id"] = uid
+            st.rerun()
 
     if st.sidebar.button("🔄 Сброс demo", key="sidebar-reset-demo", use_container_width=True):
         repository.reset_demo_state()
         semantic_engine.reset()
-        st.sidebar.success("Сброшено")
+        st.rerun()
 
     tabs = st.tabs(["🔍 Поиск", "🧪 Лаборатория", "👤 Профили", "⚙ Система", "🗂 Данные"])
     with tabs[0]:

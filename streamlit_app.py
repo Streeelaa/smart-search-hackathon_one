@@ -233,30 +233,46 @@ def inject_styles() -> None:
         }
 
         /* Sidebar: white text on dark background */
-        [data-testid="stSidebar"] {
+        section[data-testid="stSidebar"] {
             background: #1e2a33 !important;
         }
-        [data-testid="stSidebar"] * {
+        section[data-testid="stSidebar"] * {
             color: #e8ecef !important;
         }
-        [data-testid="stSidebar"] .stButton > button {
+        section[data-testid="stSidebar"] p,
+        section[data-testid="stSidebar"] span,
+        section[data-testid="stSidebar"] label,
+        section[data-testid="stSidebar"] div,
+        section[data-testid="stSidebar"] small,
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+        section[data-testid="stSidebar"] [data-testid="stCaptionContainer"],
+        section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p,
+        section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] small {
+            color: #d0d6db !important;
+        }
+        section[data-testid="stSidebar"] h1,
+        section[data-testid="stSidebar"] h2,
+        section[data-testid="stSidebar"] h3 {
+            color: #ffffff !important;
+        }
+        section[data-testid="stSidebar"] .stButton > button {
             background: linear-gradient(135deg, #3a5a52 0%, #4a6b62 100%) !important;
             color: #f0f5f3 !important;
             border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            pointer-events: auto !important;
+            cursor: pointer !important;
+            position: relative !important;
+            z-index: 1 !important;
         }
-        [data-testid="stSidebar"] .stButton > button:hover {
+        section[data-testid="stSidebar"] .stButton > button:hover {
             background: linear-gradient(135deg, #4a6b62 0%, #5a7b72 100%) !important;
             color: #ffffff !important;
         }
-        [data-testid="stSidebar"] .stButton > button p {
+        section[data-testid="stSidebar"] .stButton > button p {
             color: #f0f5f3 !important;
         }
-        [data-testid="stSidebar"] h3,
-        [data-testid="stSidebar"] h2,
-        [data-testid="stSidebar"] h1 {
-            color: #ffffff !important;
-        }
-        [data-testid="stSidebar"] hr {
+        section[data-testid="stSidebar"] hr {
             border-color: rgba(255, 255, 255, 0.15) !important;
         }
         </style>

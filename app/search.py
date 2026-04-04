@@ -124,10 +124,10 @@ def _highlight_title(title: str, query_tokens: list[str]) -> str:
     return pattern.sub(r"<mark>\1</mark>", title)
 
 
-def _build_facets(scored: list[tuple[Product, float, list[str]]], limit: int = 10) -> list[CategoryFacet]:
+def _build_facets(scored: list[tuple[Product, float, list[str], int]], limit: int = 10) -> list[CategoryFacet]:
     """Build category facets from scored results."""
     counter: Counter[str] = Counter()
-    for product, _, _ in scored:
+    for product, _, _, _ in scored:
         counter[product.category] += 1
     return [
         CategoryFacet(category=cat, count=cnt)
@@ -246,19 +246,21 @@ def search_products(
         reasons.insert(0, f"BM25: {bm25_score:.1f}")
 
         # Personalization: multiplicative boost (only in hybrid mode)
+        is_personalized = 0
         if mode == "hybrid":
             mult, pers_reasons = personalization_multiplier(product, profile)
             if mult > 1.0:
                 total_score *= mult
                 reasons.extend(pers_reasons)
+                is_personalized = 1
 
-        scored.append((product, total_score, reasons))
+        scored.append((product, total_score, reasons, is_personalized))
 
     # 6b. If we got semantic category matches but no FTS results, add semantic reason
     # (this helps for abstract queries like "канцтовары", "медикаменты")
 
-    # 7. Sort by total score
-    scored.sort(key=lambda x: x[1], reverse=True)
+    # 7. Sort: personalized first, then by total score
+    scored.sort(key=lambda x: (x[3], x[1]), reverse=True)
 
     # 8. Build facets from ALL scored results (before slicing)
     facets = _build_facets(scored)
@@ -274,7 +276,7 @@ def search_products(
             reasons=reasons[:5],
             highlight_title=_highlight_title(product.title, highlight_tokens),
         )
-        for product, score, reasons in scored[:limit]
+        for product, score, reasons, _pers in scored[:limit]
     ]
 
     response = SearchResponse(

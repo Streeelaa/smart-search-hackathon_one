@@ -60,14 +60,6 @@ USER_ROLE_LABELS: dict[str, str] = {
     "9718062105": "🚜 Мосотделстрой (техника)",
 }
 
-QUICK_EXAMPLES: list[tuple[str, str]] = [
-    ("шприц", "Персонализация: аптека vs авто"),
-    ("фильтр", "Авто-фильтр vs воздушный"),
-    ("ноутбук Lenovo", "Точный запрос по бренду"),
-    ("бумага офисная", "Широкий запрос BM25"),
-    ("канцтовары", "Семантика + синонимы"),
-    ("перчтки", "Автокоррекция опечатки"),
-]
 
 
 def inject_styles() -> None:
@@ -534,12 +526,6 @@ def render_demo_scenarios_tab() -> None:
         unsafe_allow_html=True,
     )
 
-    example_cols = st.columns(len(QUICK_EXAMPLES))
-    for idx, (label, query_val) in enumerate(QUICK_EXAMPLES):
-        if example_cols[idx].button(label, key=f"qe-{idx}", use_container_width=True):
-            st.session_state["demo_query"] = query_val
-            st.rerun()
-
     # --- Search input (NO form — allows re-typing freely) ---
     demo_query = st.text_input(
         "Введите запрос",
@@ -653,71 +639,7 @@ def render_demo_scenarios_tab() -> None:
             sort_option=sort_option,
         )
 
-    st.markdown("---")
-    st.markdown("## 🎬 Готовые сценарии")
-    st.caption("Демо-пресеты для показа жюри. В продакшне этот блок не нужен.")
 
-    scenarios = get_demo_scenarios()
-    selected_key = st.session_state.get("selected_demo_scenario", scenarios[0].key if scenarios else "")
-    with st.expander("Показать demo-сценарии", expanded=False):
-        selected_key = st.radio(
-            "Сценарий",
-            options=[scenario.key for scenario in scenarios],
-            format_func=lambda key: next((scenario.title for scenario in scenarios if scenario.key == key), key),
-            index=next((index for index, scenario in enumerate(scenarios) if scenario.key == selected_key), 0) if scenarios else 0,
-            horizontal=True,
-            label_visibility="collapsed",
-        )
-        scenario = get_demo_scenario(selected_key)
-        if scenario is None:
-            st.info("Сценарии недоступны")
-            return
-
-        with st.container(border=True):
-            st.markdown(f"### {scenario.title}")
-            st.caption(scenario.summary)
-            st.markdown(f"**Цель:** {scenario.goal}")
-            for index, step in enumerate(scenario.steps, start=1):
-                st.markdown(f"{index}. {step}")
-
-        control_cols = st.columns(4)
-        if control_cols[0].button("▶ Загрузить", key=f"load-scenario-{scenario.key}", use_container_width=True):
-            apply_demo_scenario(scenario.key)
-            st.session_state["demo_query"] = scenario.query
-            st.success("Сценарий загружен в поле поиска выше ↑")
-        if control_cols[1].button("📥 События", key=f"apply-events-{scenario.key}", use_container_width=True):
-            st.success(run_demo_events(scenario.key))
-        if control_cols[2].button("🔄 Сброс", key=f"reset-state-{scenario.key}", use_container_width=True):
-            repository.reset_demo_state()
-            semantic_engine.reset()
-            st.success("Demo state сброшен")
-        if control_cols[3].button("👤 Профиль", key=f"open-profile-{scenario.key}", use_container_width=True):
-            st.session_state["selected_user_id"] = scenario.user_id or "user-1"
-            st.info("Профиль выбран во вкладке Профили")
-
-        baseline_response = search_products(query=scenario.query, limit=5, user_id=None, mode=scenario.mode)
-        personalized_response = search_products(query=scenario.query, limit=5, user_id=scenario.user_id, mode=scenario.mode) if scenario.user_id else None
-
-        compare_cols = st.columns(2)
-        with compare_cols[0]:
-            st.markdown("#### Базовый поиск")
-            baseline_rows = [
-                {"#": index + 1, "Товар": f"{category_icon(item.product.category)} {item.product.title}", "Категория": item.product.category[:40], "Score": f"{item.score:.1f}"}
-                for index, item in enumerate(baseline_response.items)
-            ]
-            st.dataframe(pd.DataFrame(baseline_rows), width="stretch", hide_index=True)
-
-        with compare_cols[1]:
-            st.markdown("#### Персонализированный поиск")
-            if personalized_response is None:
-                st.info("Персонализация не задана для этого сценария")
-            else:
-                st.caption(f"Пользователь: {format_user_label(scenario.user_id)}")
-                personalized_rows = [
-                    {"#": index + 1, "Товар": f"{category_icon(item.product.category)} {item.product.title}", "Категория": item.product.category[:40], "Score": f"{item.score:.1f}"}
-                    for index, item in enumerate(personalized_response.items)
-                ]
-                st.dataframe(pd.DataFrame(personalized_rows), width="stretch", hide_index=True)
 
 
 def result_card(item, user_id: str | None, mode: str, rank: int, key_prefix: str = "search", popularity: int = 0, avg_price: float | None = None) -> None:

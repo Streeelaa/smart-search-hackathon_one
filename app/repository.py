@@ -280,6 +280,63 @@ class RealDataRepository:
         ).fetchall()
         return [(r["category"], r["cnt"]) for r in rows]
 
+    def suggest_products(self, prefix: str, limit: int = 8) -> list[dict]:
+        """Fast autocomplete: find products + categories matching prefix."""
+        if not prefix or len(prefix) < 2:
+            return []
+        results = []
+        # 1) Category suggestions
+        cat_rows = self._conn.execute(
+            "SELECT category, COUNT(*) as cnt FROM products WHERE category LIKE ? GROUP BY category ORDER BY cnt DESC LIMIT 4",
+            (f"%{prefix}%",),
+        ).fetchall()
+        for r in cat_rows:
+            results.append({"type": "category", "title": r["category"], "count": r["cnt"]})
+        # 2) Product title suggestions (fast LIKE on title)
+        prod_rows = self._conn.execute(
+            "SELECT id, title, category FROM products WHERE title LIKE ? LIMIT ?",
+            (f"%{prefix}%", limit - len(results)),
+        ).fetchall()
+        for r in prod_rows:
+            results.append({"type": "product", "title": r["title"], "category": r["category"], "id": r["id"]})
+        return results[:limit]
+
+    def get_product_contract_count(self, product_id: int) -> int:
+        """Get number of contracts for a product (popularity)."""
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM contracts WHERE product_id = ?", (product_id,)
+        ).fetchone()
+        return row[0] if row else 0
+
+    def get_product_avg_price(self, product_id: int) -> float | None:
+        """Get average contract price for a product."""
+        row = self._conn.execute(
+            "SELECT AVG(price) FROM contracts WHERE product_id = ?", (product_id,)
+        ).fetchone()
+        return row[0] if row and row[0] else None
+
+    def get_products_popularity(self, product_ids: list[int]) -> dict[int, int]:
+        """Get contract counts for multiple products at once."""
+        if not product_ids:
+            return {}
+        placeholders = ",".join("?" * len(product_ids))
+        rows = self._conn.execute(
+            f"SELECT product_id, COUNT(*) as cnt FROM contracts WHERE product_id IN ({placeholders}) GROUP BY product_id",
+            product_ids,
+        ).fetchall()
+        return {r["product_id"]: r["cnt"] for r in rows}
+
+    def get_products_prices(self, product_ids: list[int]) -> dict[int, float]:
+        """Get average prices for multiple products at once."""
+        if not product_ids:
+            return {}
+        placeholders = ",".join("?" * len(product_ids))
+        rows = self._conn.execute(
+            f"SELECT product_id, AVG(price) as avg_price FROM contracts WHERE product_id IN ({placeholders}) GROUP BY product_id",
+            product_ids,
+        ).fetchall()
+        return {r["product_id"]: r["avg_price"] for r in rows}
+
     # ---- Backward compat stubs ----
 
     def replace_products(self, products: list[Product]) -> None:

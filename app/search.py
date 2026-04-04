@@ -182,10 +182,10 @@ def search_products(
     candidate_limit = max(limit * 10, 100)
     candidates = repository.search_fts5(fts_terms, limit=candidate_limit)
 
-    # 4b. Semantic expansion: only when FTS5 returns few results
+    # 4b. Semantic expansion: in hybrid mode, always try semantic enrichment
     semantic_categories: list[tuple[str, float]] = []
     fts_result_count = len(candidates)
-    needs_semantic = fts_result_count < limit * 3  # e.g., < 30 for limit=10
+    needs_semantic = (mode == "hybrid") or (mode == "semantic") or (fts_result_count < limit * 3)
     try:
         from app.semantic import semantic_engine
         if semantic_engine._ready and needs_semantic:

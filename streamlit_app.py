@@ -17,6 +17,14 @@ from app.synonyms import get_synonym_map
 # Warm up vocabulary lazily — triggered on first typo-correcting search
 # (background thread removed to avoid SQLite concurrency issues)
 
+# Initialize semantic engine once per Streamlit session
+if "_semantic_initialized" not in st.session_state:
+    try:
+        semantic_engine.build_index()
+    except Exception:
+        pass
+    st.session_state["_semantic_initialized"] = True
+
 
 st.set_page_config(
     page_title="Умный поиск — zakupki.mos.ru",
@@ -348,6 +356,46 @@ def category_icon(category: str) -> str:
     return "📦"
 
 
+def sanitize_attributes(attrs_str: str, max_len: int = 150) -> str:
+    """Clean up garbage attribute strings (repeated words/numbers from CSV import)."""
+    if not attrs_str:
+        return ""
+    # Detect repeated patterns: split into words, check if >50% are duplicates
+    words = attrs_str.split()
+    if len(words) > 4:
+        from collections import Counter
+        counter = Counter(words)
+        most_common_count = counter.most_common(1)[0][1]
+        # If the most common word appears in >40% of all words => garbage
+        if most_common_count > len(words) * 0.4:
+            # Try to extract unique meaningful words (not numbers)
+            unique_words = []
+            seen = set()
+            for w in words:
+                w_clean = w.strip(".,;:!?()")
+                if w_clean and w_clean not in seen and not _is_garbage_token(w_clean):
+                    seen.add(w_clean)
+                    unique_words.append(w_clean)
+            if unique_words:
+                return ", ".join(unique_words[:10])
+            return ""
+    return attrs_str[:max_len]
+
+
+def _is_garbage_token(token: str) -> bool:
+    """Check if a token is garbage (pure number, repeated pattern)."""
+    # Pure numbers like '36', '14.00000', '2.00000'
+    try:
+        float(token)
+        return True
+    except ValueError:
+        pass
+    # Very short or common garbage
+    if token.lower() in ("нет", "да", "none", "null", "-"):
+        return True
+    return False
+
+
 def format_price(price: float) -> str:
     return f"{price:,.0f} ₽".replace(",", " ")
 
@@ -396,7 +444,7 @@ def run_demo_events(scenario_key: str) -> str:
     return f"Применено событий: {len(scenario.events)}"
 
 
-def render_search_response(response: SearchResponse, user_id: str | None, compare_modes: bool, key_prefix: str, show_debug: bool = False) -> None:
+def render_search_response(response: SearchResponse, user_id: str | None, compare_modes: bool, key_prefix: str, show_debug: bool = False, sort_option: str = "По релевантности") -> None:
     render_pipeline(response)
     summary_cols = st.columns(5)
     summary_cols[0].metric("Найдено", response.total)
@@ -417,17 +465,22 @@ def render_search_response(response: SearchResponse, user_id: str | None, compar
         expanded_pills = " ".join(f"`{t}`" for t in response.expanded_terms)
         st.markdown(f"**Расширение синонимами:** {expanded_pills}")
 
-    # Category facets
+    # Category facets — clickable for filtering
     if response.facets:
         st.markdown("**Категории в результатах:**")
         facet_cols = st.columns(min(len(response.facets), 6))
         for i, facet in enumerate(response.facets[:6]):
             icon = category_icon(facet.category)
-            facet_cols[i].markdown(
-                f"<div style='text-align:center;padding:6px 8px;border-radius:12px;background:rgba(111,141,134,0.1);font-size:0.82rem'>"
-                f"{icon} <b>{facet.category[:28]}</b><br><small>{facet.count} шт</small></div>",
-                unsafe_allow_html=True,
-            )
+            with facet_cols[i]:
+                if st.button(
+                    f"{icon} {facet.category[:28]}\n{facet.count} шт",
+                    key=f"{key_prefix}-facet-{i}",
+                    use_container_width=True,
+                ):
+                    # Re-run search with this category filter
+                    st.session_state["demo_category_filter"] = facet.category
+                    st.session_state["demo_query"] = response.query
+                    st.rerun()
 
     if show_debug:
         with st.expander("Технические детали", expanded=False):
@@ -438,8 +491,16 @@ def render_search_response(response: SearchResponse, user_id: str | None, compar
             info_cols[3].metric("Search ms", f"{response.search_time_ms:.1f}")
 
     if response.items:
+        # Fetch popularity/price data for all items at once
+        product_ids = [item.product.id for item in response.items]
+        popularity_map = repository.get_products_popularity(product_ids)
+        prices_map = repository.get_products_prices(product_ids)
+
         for index, item in enumerate(response.items, start=1):
-            result_card(item, user_id, response.mode, index, key_prefix=key_prefix)
+            pop_count = popularity_map.get(item.product.id, 0)
+            avg_price = prices_map.get(item.product.id)
+            result_card(item, user_id, response.mode, index, key_prefix=key_prefix,
+                       popularity=pop_count, avg_price=avg_price)
     else:
         st.warning("Ничего не найдено. Попробуйте другой запрос.")
 
@@ -477,54 +538,119 @@ def render_demo_scenarios_tab() -> None:
     for idx, (label, query_val) in enumerate(QUICK_EXAMPLES):
         if example_cols[idx].button(label, key=f"qe-{idx}", use_container_width=True):
             st.session_state["demo_query"] = query_val
+            st.rerun()
+
+    # --- Search input (NO form — allows re-typing freely) ---
+    demo_query = st.text_input(
+        "Введите запрос",
+        value=st.session_state.get("demo_query", ""),
+        key="demo_query_input",
+        placeholder="масло, канцтовары, шприц, ноутбук Lenovo...",
+    )
+
+    # --- Live search suggestions ---
+    if demo_query and len(demo_query) >= 2 and demo_query != st.session_state.get("_last_searched", ""):
+        suggestions = repository.suggest_products(demo_query, limit=6)
+        if suggestions:
+            st.markdown("**Подсказки:**")
+            scols = st.columns(min(len(suggestions), 6))
+            for si, sug in enumerate(suggestions):
+                with scols[si % len(scols)]:
+                    if sug["type"] == "category":
+                        icon = category_icon(sug["title"])
+                        btn_label = f"{icon} {sug['title'][:30]}\n← категория ({sug['count']})"
+                    else:
+                        icon = category_icon(sug.get("category", ""))
+                        btn_label = f"{icon} {sug['title'][:35]}"
+                    if st.button(btn_label, key=f"sug-{si}", use_container_width=True):
+                        if sug["type"] == "category":
+                            st.session_state["demo_category_filter"] = sug["title"]
+                            st.session_state["demo_query"] = demo_query
+                        else:
+                            st.session_state["demo_query"] = sug["title"][:60]
+                        st.rerun()
+
+    # --- Settings row ---
+    active_cat_filter = st.session_state.get("demo_category_filter", None)
+    if active_cat_filter:
+        fcols = st.columns([5, 1])
+        fcols[0].info(f"📂 Фильтр по категории: **{active_cat_filter}**")
+        if fcols[1].button("✕ Сбросить", key="clear-cat-filter"):
+            st.session_state["demo_category_filter"] = None
+            st.rerun()
+
+    setting_cols = st.columns([1, 1, 1, 1, 1])
+    demo_limit = setting_cols[0].number_input("Результатов", min_value=1, max_value=500, value=10, step=1, key="demo-limit")
+    sort_option = setting_cols[1].selectbox("Сортировка", options=["По релевантности", "По популярности", "По цене ↑", "По цене ↓"], index=0, key="demo-sort")
+    show_advanced = setting_cols[2].checkbox("Расширенные", value=False, key="demo-show-advanced")
+    show_facet_filter = setting_cols[3].checkbox("Фильтр категорий", value=False, key="demo-show-facet")
+    search_clicked = setting_cols[4].button("🔎 Искать", key="demo-search-btn", use_container_width=True)
+
+    sidebar_user = st.session_state.get("selected_user_id", "")
+    demo_user_id = sidebar_user
+    demo_mode = "hybrid"
+    demo_compare_modes = False
+    demo_category_filter = active_cat_filter
 
     demo_user_options = ["", *list_user_ids()]
-    with st.form("demo_quick_search_form"):
-        demo_query = st.text_input("Введите запрос", value=st.session_state.get("demo_query", ""))
-        top_cols = st.columns([2, 1, 1])
-        demo_limit = top_cols[0].number_input("Результатов", min_value=1, max_value=500, value=10, step=1, key="demo-limit")
-        show_advanced = top_cols[1].checkbox("Расширенные настройки", value=False, key="demo-show-advanced")
-        show_facet_filter = top_cols[2].checkbox("Фильтр по категории", value=False, key="demo-show-facet")
-
-        # Use sidebar-selected user by default
-        sidebar_user = st.session_state.get("selected_user_id", "")
-        demo_user_id = sidebar_user
-        demo_mode = "hybrid"
-        demo_compare_modes = False
-        demo_category_filter = None
-        if show_advanced:
-            advanced_cols = st.columns(3)
-            default_idx = demo_user_options.index(sidebar_user) if sidebar_user in demo_user_options else 0
-            demo_user_id = advanced_cols[0].selectbox("Пользователь", options=demo_user_options, format_func=lambda u: format_user_label(u) if u else "— без персонализации —", index=default_idx, key="demo-user")
-            demo_mode = advanced_cols[1].selectbox("Режим", options=["keyword", "semantic", "hybrid"], index=2, key="demo-mode")
-            demo_compare_modes = advanced_cols[2].checkbox("Сравнить режимы", value=False, key="demo-compare")
-        if show_facet_filter:
-            cat_input = st.text_input("Введите часть названия категории для фильтра", value="", key="demo-cat-input")
-            if cat_input:
-                matching_cats = repository.search_categories(cat_input, limit=10)
-                if matching_cats:
-                    cat_options = [""] + [c[0] for c in matching_cats]
-                    demo_category_filter = st.selectbox(
-                        "Фильтр категории",
-                        options=cat_options,
-                        format_func=lambda c: f"{category_icon(c)} {c} ({next((n for cn, n in matching_cats if cn == c), '')})" if c else "— все категории —",
-                        key="demo-cat-filter",
-                    ) or None
-        demo_submitted = st.form_submit_button("🔎 Искать")
+    if show_advanced:
+        advanced_cols = st.columns(3)
+        default_idx = demo_user_options.index(sidebar_user) if sidebar_user in demo_user_options else 0
+        demo_user_id = advanced_cols[0].selectbox("Пользователь", options=demo_user_options, format_func=lambda u: format_user_label(u) if u else "— без персонализации —", index=default_idx, key="demo-user")
+        demo_mode = advanced_cols[1].selectbox("Режим", options=["keyword", "semantic", "hybrid"], index=2, key="demo-mode")
+        demo_compare_modes = advanced_cols[2].checkbox("Сравнить режимы", value=False, key="demo-compare")
+    if show_facet_filter:
+        cat_input = st.text_input("Поиск по категориям", value="", key="demo-cat-input", placeholder="канцелярские, масло, фильтр...")
+        if cat_input:
+            matching_cats = repository.search_categories(cat_input, limit=10)
+            if matching_cats:
+                cat_options = [""] + [c[0] for c in matching_cats]
+                selected_cat = st.selectbox(
+                    "Выберите категорию",
+                    options=cat_options,
+                    format_func=lambda c: f"{category_icon(c)} {c} ({next((n for cn, n in matching_cats if cn == c), '')} шт)" if c else "— все категории —",
+                    key="demo-cat-filter",
+                )
+                if selected_cat:
+                    demo_category_filter = selected_cat
+            else:
+                st.caption("Категории не найдены")
 
     if sidebar_user and not show_advanced:
         st.info(f"🔍 Поиск от имени: **{format_user_label(sidebar_user)}** (выбран в сайдбаре)")
 
-    if demo_submitted:
+    # --- Execute search ---
+    should_search = search_clicked
+    # Also auto-search when there's a pending query from facet/suggestion click
+    pending_query = st.session_state.get("demo_query", "")
+    if not should_search and active_cat_filter and pending_query:
+        should_search = True
+        demo_query = pending_query
+
+    if should_search and demo_query:
         st.session_state["demo_query"] = demo_query
         st.session_state["last_query"] = demo_query
+        st.session_state["_last_searched"] = demo_query
         demo_response = search_products(query=demo_query, limit=demo_limit, user_id=demo_user_id or None, mode=demo_mode, category_filter=demo_category_filter)
+
+        # --- Apply sorting ---
+        if sort_option != "По релевантности" and demo_response.items:
+            product_ids = [item.product.id for item in demo_response.items]
+            if sort_option == "По популярности":
+                popularity = repository.get_products_popularity(product_ids)
+                demo_response.items.sort(key=lambda it: popularity.get(it.product.id, 0), reverse=True)
+            elif sort_option in ("По цене ↑", "По цене ↓"):
+                prices = repository.get_products_prices(product_ids)
+                desc = sort_option == "По цене ↓"
+                demo_response.items.sort(key=lambda it: prices.get(it.product.id, 0), reverse=desc)
+
         render_search_response(
             response=demo_response,
             user_id=demo_user_id or None,
             compare_modes=demo_compare_modes,
             key_prefix="demo",
             show_debug=show_advanced,
+            sort_option=sort_option,
         )
 
     st.markdown("---")
@@ -594,12 +720,12 @@ def render_demo_scenarios_tab() -> None:
                 st.dataframe(pd.DataFrame(personalized_rows), width="stretch", hide_index=True)
 
 
-def result_card(item, user_id: str | None, mode: str, rank: int, key_prefix: str = "search") -> None:
+def result_card(item, user_id: str | None, mode: str, rank: int, key_prefix: str = "search", popularity: int = 0, avg_price: float | None = None) -> None:
     product = item.product
     icon = category_icon(product.category)
     score_color = "#27ae60" if item.score >= 20 else "#e67e22" if item.score >= 10 else "#95a5a6"
     reasons_html = " ".join(f"<code>{html_module.escape(r)}</code>" for r in (item.reasons or []))
-    attrs_str = product.attributes.get("raw", "")[:150] if product.attributes else ""
+    attrs_str = sanitize_attributes(product.attributes.get("raw", "")) if product.attributes else ""
     # Use highlighted title if available
     display_title = item.highlight_title if item.highlight_title else html_module.escape(product.title)
 
@@ -608,13 +734,21 @@ def result_card(item, user_id: str | None, mode: str, rank: int, key_prefix: str
     if any("буст" in r for r in (item.reasons or [])):
         pers_badge = '<span style="background:#d4edda;color:#155724;padding:2px 8px;border-radius:8px;font-size:0.75rem;font-weight:600;margin-left:6px">⚡ Персонализировано</span>'
 
+    # Popularity & price badges
+    extra_badges = ""
+    if popularity > 0:
+        extra_badges += f'<span style="background:#e8f4fd;color:#1a5276;padding:2px 8px;border-radius:8px;font-size:0.72rem;font-weight:500;margin-left:4px">📊 {popularity} контрактов</span>'
+    if avg_price and avg_price > 0:
+        price_str = f"{avg_price:,.0f}".replace(",", " ")
+        extra_badges += f'<span style="background:#fef9e7;color:#7d6608;padding:2px 8px;border-radius:8px;font-size:0.72rem;font-weight:500;margin-left:4px">💰 ~{price_str} ₽</span>'
+
     card_html = f"""
     <div class="product-card">
         <div class="card-header">
             <span class="rank-badge">#{rank}</span>
             <span class="cat-icon">{icon}</span>
             <div class="title-block">
-                <strong>{display_title}</strong>{pers_badge}<br>
+                <strong>{display_title}</strong>{pers_badge}{extra_badges}<br>
                 <small style="color:#888">ID {product.id} · {html_module.escape(product.category)}</small>
             </div>
             <span class="score-badge" style="background:{score_color};color:#fff;padding:4px 10px;border-radius:12px;font-weight:700">{item.score:.1f}</span>
@@ -629,35 +763,119 @@ def result_card(item, user_id: str | None, mode: str, rank: int, key_prefix: str
 
 
 def render_search_tab() -> None:
-    st.markdown("## 🧪 Search Studio")
+    st.markdown("## 🧪 Search Studio — Лаборатория")
     st.markdown(
-        "<div class='hero-card'><strong>Лаборатория:</strong> тестирование и сравнение режимов поиска. На продуктовом интерфейсе пользователю этот экран не показывается.</div>",
+        "<div class='hero-card'><strong>Лаборатория:</strong> сравнение алгоритмов поиска бок о бок. "
+        "Введите запрос и увидите как работает каждый из 3 режимов (keyword, semantic, hybrid) с детальным анализом.</div>",
         unsafe_allow_html=True,
     )
 
     options = ["", *list_user_ids()]
-    with st.form("search_form"):
-        query = st.text_input("Поисковый запрос", value=st.session_state.get("last_query", "ноут для офиса"))
-        cols = st.columns(4)
-        mode = cols[0].selectbox("Режим", options=["keyword", "semantic", "hybrid"], index=2)
-        user_id = cols[1].selectbox("Пользователь", options=options, format_func=lambda u: format_user_label(u) if u else "— без —", index=1 if len(options) > 1 else 0)
-        limit = cols[2].number_input("Лимит", min_value=1, max_value=500, value=5, step=1)
-        compare_modes = cols[3].checkbox("Сравнить режимы", value=True)
-        submitted = st.form_submit_button("🔎 Запустить поиск")
+    query = st.text_input("Поисковый запрос", value=st.session_state.get("last_query", "ноут для офиса"), key="lab-query")
+    lab_cols = st.columns(3)
+    user_id = lab_cols[0].selectbox("Пользователь", options=options, format_func=lambda u: format_user_label(u) if u else "— без —", index=1 if len(options) > 1 else 0, key="lab-user")
+    limit = lab_cols[1].number_input("Лимит результатов", min_value=1, max_value=50, value=5, step=1, key="lab-limit")
+    run_comparison = lab_cols[2].button("🔬 Сравнить все режимы", use_container_width=True, key="lab-run")
 
-    if not submitted:
+    if not run_comparison:
+        st.caption("Нажмите «Сравнить все режимы» для запуска анализа.")
         return
 
     st.session_state["last_query"] = query
-    response = search_products(query=query, limit=limit, user_id=user_id or None, mode=mode)
-    render_search_response(response=response, user_id=user_id or None, compare_modes=compare_modes, key_prefix="search", show_debug=True)
+
+    # Run all 3 modes
+    modes = ["keyword", "semantic", "hybrid"]
+    results: dict[str, SearchResponse] = {}
+    for m in modes:
+        results[m] = search_products(query=query, limit=limit, user_id=user_id or None, mode=m)
+
+    # Summary comparison table
+    st.markdown("### 📊 Сводная таблица")
+    summary_rows = []
+    for m in modes:
+        r = results[m]
+        summary_rows.append({
+            "Режим": m.upper(),
+            "Найдено": r.total,
+            "Семантика": r.semantic_backend or "off",
+            "Персонализация": "✅" if r.personalized else "❌",
+            "Время (мс)": f"{r.search_time_ms:.0f}",
+            "Топ-1": r.items[0].product.title[:50] if r.items else "—",
+            "Score топ-1": f"{r.items[0].score:.1f}" if r.items else "—",
+        })
+    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+
+    # Speed chart
+    st.markdown("### ⏱ Скорость (мс)")
+    speed_data = pd.DataFrame({
+        "Режим": [m.upper() for m in modes],
+        "мс": [results[m].search_time_ms for m in modes],
+    }).set_index("Режим")
+    st.bar_chart(speed_data)
+
+    # Side-by-side results
+    st.markdown("### 🔍 Результаты по режимам")
+    result_cols = st.columns(3)
+    for ci, m in enumerate(modes):
+        with result_cols[ci]:
+            r = results[m]
+            st.markdown(f"#### {m.upper()}")
+            speed_color = "🟢" if r.search_time_ms < 200 else "🟡" if r.search_time_ms < 1000 else "🔴"
+            st.caption(f"{speed_color} {r.search_time_ms:.0f} мс · {r.total} результатов · Семантика: {r.semantic_backend or 'off'}")
+            render_pipeline(r)
+            if r.items:
+                rows = [
+                    {"#": idx + 1, "Товар": f"{category_icon(it.product.category)} {it.product.title[:45]}", "Score": f"{it.score:.1f}"}
+                    for idx, it in enumerate(r.items)
+                ]
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            else:
+                st.warning("Нет результатов")
+
+    # Overlap analysis
+    st.markdown("### 🔄 Анализ пересечений")
+    sets = {m: {it.product.id for it in results[m].items} for m in modes}
+    overlap_rows = []
+    for m1 in modes:
+        for m2 in modes:
+            if m1 < m2:
+                common = sets[m1] & sets[m2]
+                overlap_rows.append({
+                    "Пара": f"{m1.upper()} ∩ {m2.upper()}",
+                    "Общих товаров": len(common),
+                    f"Только {m1.upper()}": len(sets[m1] - sets[m2]),
+                    f"Только {m2.upper()}": len(sets[m2] - sets[m1]),
+                })
+    st.dataframe(pd.DataFrame(overlap_rows), use_container_width=True, hide_index=True)
 
 
-def render_profiles_tab() -> None:
-    st.markdown("## 👤 Профили и сигналы")
+def render_analytics_tab() -> None:
+    """Combined analytics tab — lazy loaded sections."""
+    st.markdown("## 📊 Аналитика и данные")
+    st.caption("Панель разработчика: профили, метрики качества, движки, данные. Каждый раздел загружается только по запросу.")
+
+    section = st.radio(
+        "Выберите раздел",
+        options=["👤 Профили организаций", "⚙ Система и метрики", "🗂 Данные и синонимы"],
+        horizontal=True,
+        key="analytics-section",
+    )
+
+    if section == "👤 Профили организаций":
+        _render_profiles_section()
+    elif section == "⚙ Система и метрики":
+        if st.button("📈 Загрузить метрики (занимает время)", key="load-metrics"):
+            _render_system_section()
+        else:
+            st.info("Нажмите кнопку выше для загрузки evaluation и сравнения режимов.")
+    elif section == "🗂 Данные и синонимы":
+        _render_data_section()
+
+
+def _render_profiles_section() -> None:
     users = list_user_ids()
     default_user = st.session_state.get("selected_user_id", users[0] if users else "7714338609")
-    selected_user = st.selectbox("Пользователь", options=users, format_func=format_user_label, index=users.index(default_user) if default_user in users else 0)
+    selected_user = st.selectbox("Пользователь", options=users, format_func=format_user_label, index=users.index(default_user) if default_user in users else 0, key="prof-user")
     profile = repository.get_user_profile(selected_user)
 
     metrics = st.columns(4)
@@ -666,7 +884,7 @@ def render_profiles_tab() -> None:
     metrics[2].metric("Категорий в профиле", len(profile.category_affinity))
     metrics[3].metric("User ID (ИНН)", selected_user)
 
-    st.markdown("### Категории закупок (aффинити)")
+    st.markdown("### Категории закупок (аффинити)")
     if profile.category_affinity:
         sorted_cats = dict(sorted(profile.category_affinity.items(), key=lambda x: x[1], reverse=True))
         labels = [f"{category_icon(k)} {k[:50]}" for k in sorted_cats]
@@ -676,10 +894,10 @@ def render_profiles_tab() -> None:
         st.info("Нет данных о закупках")
 
 
-def render_system_tab() -> None:
-    st.markdown("## ⚙ Система и метрики")
-    evaluation = evaluate_search()
-    comparison = compare_search_modes()
+def _render_system_section() -> None:
+    with st.spinner("Вычисление метрик..."):
+        evaluation = evaluate_search()
+        comparison = compare_search_modes()
     semantic_status = semantic_engine.status()
     reranker_status = reranker.status()
 
@@ -694,27 +912,22 @@ def render_system_tab() -> None:
     with engine_cols[0]:
         sem_icon = "🟢" if semantic_status.ready else "🔴"
         st.markdown(f"### {sem_icon} Semantic engine")
-        st.json(
-            {
-                "ready": semantic_status.ready,
-                "backend": semantic_status.backend,
-                "model_name": semantic_status.model_name,
-                "indexed_products": semantic_status.indexed_products,
-                "categories_indexed": semantic_status.categories_indexed,
-                "last_error": semantic_status.last_error,
-            }
-        )
+        st.json({
+            "ready": semantic_status.ready,
+            "backend": semantic_status.backend,
+            "model_name": semantic_status.model_name,
+            "categories_indexed": semantic_status.categories_indexed,
+            "last_error": semantic_status.last_error,
+        })
     with engine_cols[1]:
         rr_icon = "🟢" if reranker_status.ready else "🔴"
         st.markdown(f"### {rr_icon} Reranker")
-        st.json(
-            {
-                "ready": reranker_status.ready,
-                "backend": reranker_status.backend,
-                "model_name": reranker_status.model_name,
-                "last_error": reranker_status.last_error,
-            }
-        )
+        st.json({
+            "ready": reranker_status.ready,
+            "backend": reranker_status.backend,
+            "model_name": reranker_status.model_name,
+            "last_error": reranker_status.last_error,
+        })
 
     st.markdown("### 📈 Evaluation summary")
     metric_cols = st.columns(5)
@@ -724,16 +937,15 @@ def render_system_tab() -> None:
     metric_cols[3].metric("Precision@3", f"{evaluation.precision_at_3:.3f}")
     metric_cols[4].metric("Recall@10", f"{evaluation.recall_at_10:.3f}")
 
-    st.dataframe(pd.DataFrame([case.model_dump() for case in evaluation.cases]), width="stretch", hide_index=True)
+    with st.expander("Детали по кейсам", expanded=False):
+        st.dataframe(pd.DataFrame([case.model_dump() for case in evaluation.cases]), use_container_width=True, hide_index=True)
+
     st.markdown("### Сравнение режимов")
     st.success(f"Лучший режим по NDCG@10: **{comparison.best_mode_by_ndcg}**")
-    st.dataframe(pd.DataFrame([row.model_dump() for row in comparison.rows]), width="stretch", hide_index=True)
+    st.dataframe(pd.DataFrame([row.model_dump() for row in comparison.rows]), use_container_width=True, hide_index=True)
 
 
-def render_data_ops_tab() -> None:
-    st.markdown("## 🗂 Данные")
-    st.caption("JSON-каталог и события можно импортировать прямо из интерфейса.")
-
+def _render_data_section() -> None:
     import_cols = st.columns(2)
     with import_cols[0]:
         with st.form("catalog_import_form"):
@@ -781,7 +993,7 @@ def render_data_ops_tab() -> None:
         {"Термин": key, "Варианты": ", ".join(values)}
         for key, values in list(synonym_map.items())[:20]
     ]
-    st.dataframe(pd.DataFrame(synonym_rows), width="stretch", hide_index=True)
+    st.dataframe(pd.DataFrame(synonym_rows), use_container_width=True, hide_index=True)
 
 
 def main() -> None:
@@ -839,17 +1051,13 @@ def main() -> None:
         semantic_engine.reset()
         st.rerun()
 
-    tabs = st.tabs(["🔍 Поиск", "🧪 Лаборатория", "👤 Профили", "⚙ Система", "🗂 Данные"])
+    tabs = st.tabs(["🔍 Поиск", "🧪 Лаборатория", "� Аналитика"])
     with tabs[0]:
         render_demo_scenarios_tab()
     with tabs[1]:
         render_search_tab()
     with tabs[2]:
-        render_profiles_tab()
-    with tabs[3]:
-        render_system_tab()
-    with tabs[4]:
-        render_data_ops_tab()
+        render_analytics_tab()
 
 
 if __name__ == "__main__":

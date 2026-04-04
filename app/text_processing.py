@@ -54,7 +54,7 @@ def correct_tokens(tokens: list[str], vocabulary: set[str]) -> tuple[list[str], 
     corrected: list[str] = []
     changed = False
     for token in tokens:
-        if token in vocabulary or len(token) < 4:
+        if token in vocabulary or len(token) < 3:
             corrected.append(token)
             continue
         # Also check normalized form
@@ -65,17 +65,24 @@ def correct_tokens(tokens: list[str], vocabulary: set[str]) -> tuple[list[str], 
                 changed = True
             continue
 
-        # Check manual corrections for common misspellings
+        # Check manual corrections for common misspellings — check BOTH original and normed
+        if token in _MANUAL_CORRECTIONS:
+            corrected.append(_MANUAL_CORRECTIONS[token])
+            changed = True
+            continue
         if normed in _MANUAL_CORRECTIONS:
             corrected.append(_MANUAL_CORRECTIONS[normed])
             changed = True
             continue
 
-        # If pymorphy3 recognizes the word with good confidence, keep it
-        # (prevents correcting valid words like "шпиц" that aren't in product vocab)
+        # If pymorphy3 recognizes the word with HIGH confidence AND it's in a real
+        # dictionary (not just guessing), keep it. Use stricter threshold to avoid
+        # blocking legitimate typo corrections.
         if _morph is not None and token.isalpha():
             parsed = _morph.parse(token)
-            if parsed and parsed[0].score >= 0.3:
+            # Only trust pymorphy3 if the word is actually known (not just hypothesized)
+            # Check that best parse has high score AND a known lexeme
+            if parsed and parsed[0].score >= 0.7 and 'UNKN' not in str(parsed[0].tag):
                 corrected.append(token)
                 continue
 
@@ -94,13 +101,64 @@ _MANUAL_CORRECTIONS: dict[str, str] = {
     "мантор": "монитор",
     "маниор": "монитор",
     "минотор": "монитор",
+    "мониор": "монитор",
     "нотубук": "ноутбук",
     "натубук": "ноутбук",
+    "нотбук": "ноутбук",
+    "ноутук": "ноутбук",
     "картрдж": "картридж",
     "картирдж": "картридж",
+    "картрридж": "картридж",
     "клвиатура": "клавиатура",
+    "клавитура": "клавиатура",
     "корпьютер": "компьютер",
     "компютер": "компьютер",
+    "кампьютер": "компьютер",
+    "компютор": "компьютер",
+    "принтр": "принтер",
+    "прнтер": "принтер",
+    "пинтер": "принтер",
+    "перчтки": "перчатки",
+    "перчатка": "перчатки",
+    "пречатки": "перчатки",
+    "маслр": "масло",
+    "масла": "масло",
+    "шпиц": "шприц",
+    "шрпиц": "шприц",
+    "филтр": "фильтр",
+    "фльтр": "фильтр",
+    "бмага": "бумага",
+    "бумга": "бумага",
+    "тарелка": "тарелка",
+    "скнер": "сканер",
+    "сканнер": "сканер",
+    "кртридж": "картридж",
+    "тонир": "тонер",
+    "тоннер": "тонер",
+    "маркр": "маркер",
+    "степлр": "степлер",
+    "калькулятр": "калькулятор",
+    "дыракол": "дырокол",
+    "антисиптик": "антисептик",
+    "антиспетик": "антисептик",
+    "стетаскоп": "стетоскоп",
+    "тармометр": "термометр",
+    "тонометор": "тонометр",
+    "полатенце": "полотенце",
+    "палатенце": "полотенце",
+    "салветка": "салфетка",
+    "салфтка": "салфетка",
+    "ватрушка": "ватрушка",
+    # Protected words — should NOT be corrected
+    "канцтовары": "канцтовары",
+    "канцелярия": "канцелярия",
+    "автозапчасти": "автозапчасти",
+    "медикаменты": "медикаменты",
+    "стройматериалы": "стройматериалы",
+    "спецодежда": "спецодежда",
+    "хозтовары": "хозтовары",
+    "лэптоп": "лэптоп",
+    "оргтехника": "оргтехника",
 }
 
 
@@ -135,6 +193,11 @@ def find_best_match(token: str, vocabulary: set[str]) -> str | None:
     prefix1 = token[:1]
     for w in _get_prefix_vocab(prefix1, vocabulary):
         candidates_set.add(w)
+
+    # Strategy 3: try swapping first two chars (covers transposition typos)
+    if len(token) >= 2:
+        swapped = token[1] + token[0] + token[2:]
+        candidates_set.update(_get_prefix_vocab(swapped[:2], vocabulary))
     
     # Filter by similar length (±3 chars to be more generous)
     tlen = len(token)
@@ -145,13 +208,13 @@ def find_best_match(token: str, vocabulary: set[str]) -> str | None:
         return None
 
     if rapidfuzz_process is not None:
-        match = rapidfuzz_process.extractOne(token, candidates, score_cutoff=70)
+        match = rapidfuzz_process.extractOne(token, candidates, score_cutoff=65)
         if match is not None:
             result = str(match[0])
             _find_best_match_cache[token] = result
             return result
 
-    fallback = get_close_matches(token, candidates, n=1, cutoff=0.75)
+    fallback = get_close_matches(token, candidates, n=1, cutoff=0.70)
     result = fallback[0] if fallback else None
     _find_best_match_cache[token] = result
     return result

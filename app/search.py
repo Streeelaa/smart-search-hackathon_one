@@ -10,7 +10,7 @@ from functools import lru_cache
 from app.repository import repository
 from app.schemas import CategoryFacet, Product, SearchMode, SearchResponse, SearchResult, UserProfile
 from app.synonyms import expand_terms_with_synonyms
-from app.text_processing import correct_tokens, normalize_query, normalize_text, tokenize
+from app.text_processing import correct_tokens, normalize_query, normalize_text, normalize_tokens, tokenize
 
 logger = logging.getLogger(__name__)
 
@@ -152,29 +152,32 @@ def search_products(
 
     t0 = time.perf_counter()
 
-    # 1. Normalize
+    # 1. Tokenize raw
     raw_tokens = tokenize(query)
-    normalized = normalize_query(query)
 
-    # 2. Typo correction
+    # 2. Typo correction on RAW tokens (before normalization to avoid pymorphy3 mangling)
     typo_corrected = False
-    corrected_tokens = list(normalized)
+    corrected_raw = list(raw_tokens)
     try:
         vocab = _get_vocabulary()
-        corrected_tokens, changed = correct_tokens(list(normalized), vocab)
+        corrected_raw, changed = correct_tokens(list(raw_tokens), vocab)
         if changed:
             typo_corrected = True
     except Exception:
         pass
-    corrected_query = " ".join(corrected_tokens) if corrected_tokens else query
+    corrected_query = " ".join(corrected_raw) if corrected_raw else query
 
-    # 3. Expand with synonyms
+    # 3. Normalize (after typo correction)
+    normalized = normalize_tokens(corrected_raw)
+    corrected_tokens = list(normalized)
+
+    # 4. Expand with synonyms
     try:
         expanded_terms = expand_terms_with_synonyms(corrected_tokens)
     except Exception:
         expanded_terms = list(corrected_tokens)
 
-    # 4. FTS5 BM25 retrieval (use both original and corrected tokens)
+    # 5. FTS5 BM25 retrieval (use both original and corrected tokens)
     fts_terms = list(_cached_build_fts_query_terms(query))
     if typo_corrected:
         fts_terms_corrected = list(_cached_build_fts_query_terms(corrected_query))

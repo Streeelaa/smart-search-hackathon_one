@@ -76,7 +76,7 @@ class SemanticSearchEngine:
             return
 
         from app.repository import repository
-        logger.info("Building category embeddings index...")
+        logger.info("Building enriched category embeddings index...")
         t0 = time.time()
 
         # Get all categories with product counts
@@ -87,9 +87,12 @@ class SemanticSearchEngine:
             self.last_error = "No categories found"
             return
 
-        # Encode all category names in batches
+        # Enrich category names with sample product titles for better embeddings
+        enriched_texts = self._enrich_categories(self._category_names)
+
+        # Encode enriched category descriptions in batches
         self._category_embeddings = self._model.encode(
-            self._category_names,
+            enriched_texts,
             batch_size=128,
             show_progress_bar=False,
             normalize_embeddings=True,
@@ -104,13 +107,69 @@ class SemanticSearchEngine:
         self._save_to_cache()
         self._ready = True
 
+    def _enrich_categories(self, category_names: list[str]) -> list[str]:
+        """Enrich category names with sample product titles for richer embeddings."""
+        from app.db import SessionLocal
+        from sqlalchemy import text as sql_text
+
+        enriched: list[str] = []
+        try:
+            with SessionLocal() as session:
+                # One query: get 3 sample titles per category using GROUP_CONCAT
+                rows = session.execute(
+                    sql_text(
+                        "SELECT category, GROUP_CONCAT(title, ', ') as samples FROM "
+                        "(SELECT category, SUBSTR(title, 1, 50) as title, "
+                        "ROW_NUMBER() OVER (PARTITION BY category ORDER BY ROWID) as rn "
+                        "FROM products) WHERE rn <= 3 GROUP BY category"
+                    )
+                ).fetchall()
+                cat_samples = {r[0]: r[1] for r in rows}
+
+            for cat_name in category_names:
+                samples = cat_samples.get(cat_name)
+                if samples:
+                    enriched.append(f"{cat_name}: {samples}")
+                else:
+                    enriched.append(cat_name)
+        except Exception as e:
+            logger.warning("Failed to enrich categories: %s, using raw names", e)
+            enriched = list(category_names)
+
+        return enriched
+
+    # Meta-category mapping: abstract terms → known categories in the DB
+    _META_CATEGORIES: dict[str, list[str]] = {
+        "канцтовары": ["Ручки канцелярские", "Карандаши чернографитные", "Карандаши цветные", "Папки пластиковые", "Папки картонные", "Маркеры", "Стержни для ручек канцелярских", "Клеи канцелярские", "Ластики", "Точилки канцелярские", "Линейки", "Ножницы канцелярские", "Скрепки канцелярские", "Степлеры", "Дыроколы", "Корректоры жидкие"],
+        "канцелярия": ["Ручки канцелярские", "Карандаши чернографитные", "Папки пластиковые", "Маркеры", "Клеи канцелярские", "Ластики"],
+        "медикаменты": ["Прочие лекарственные средства", "ПРОТИВОМИКРОБНЫЕ ПРЕПАРАТЫ ДЛЯ СИСТЕМНОГО ИСПОЛЬЗОВАНИЯ,J01", "Средства дезинфицирующие", "Медицинские шприцы", "Вспомогательные материалы для стоматологии"],
+        "лекарства": ["Прочие лекарственные средства", "ПРОТИВОМИКРОБНЫЕ ПРЕПАРАТЫ ДЛЯ СИСТЕМНОГО ИСПОЛЬЗОВАНИЯ,J01", "Обеспечение лекарственными препаратами"],
+        "стройматериалы": ["Шурупы металлические", "Эмали", "Замки дверные", "Детали трубопроводов из черных металлов", "Краны общепромышленного назначения", "Смесители водоразборные", "Комплектующие для кабельных изделий"],
+        "бытовая химия": ["Средства моющие для поверхностей в помещениях", "Средства моющие для стекол и зеркал", "Средства моющие для туалетов и ванных комнат", "Средства дезинфицирующие", "Мыло туалетное жидкое", "Мыло хозяйственное твердое"],
+        "автозапчасти": ["Запасные части для легковых автомобилей", "Масла моторные"],
+        "продукты питания": ["Масло подсолнечное рафинированное", "Сахар белый кристаллический", "Молоко питьевое пастеризованное", "Крупа гречневая"],
+        "еда": ["Масло подсолнечное рафинированное", "Сахар белый кристаллический", "Молоко питьевое пастеризованное"],
+        "мебель": ["Столы рабочие офисные", "Стулья для посетителей", "Стеллажи металлические", "Шкафы для одежды"],
+        "хозтовары": ["Инвентарь уборочный", "Мешки полимерные", "Салфетки, насадки для уборки, полотна технические, ветошь", "Полотенца бумажные"],
+        "уборка": ["Инвентарь уборочный", "Средства моющие для поверхностей в помещениях", "Салфетки, насадки для уборки, полотна технические, ветошь"],
+        "оргтехника": ["Расходные материалы и комплектующие для лазерных принтеров и МФУ", "Комплектующие и запасные части для устройств ввода и вывода информации"],
+        "спецодежда": ["Одежда специальная для защиты от общих производственных загрязнений и механических воздействий", "Каска строительная"],
+    }
+
     def find_similar_categories(
         self, query: str, top_k: int = 5, threshold: float = 0.50
     ) -> list[tuple[str, float]]:
         """Find categories semantically similar to query.
 
         Returns list of (category_name, similarity_score) pairs.
+        First checks meta-category mapping for known abstract terms,
+        then falls back to embedding similarity.
         """
+        # Check meta-categories first — exact match on abstract terms
+        query_lower = query.lower().strip()
+        if query_lower in self._META_CATEGORIES:
+            return [(cat, 0.95) for cat in self._META_CATEGORIES[query_lower][:top_k]]
+
         if not self._ready or self._category_embeddings is None:
             return []
 

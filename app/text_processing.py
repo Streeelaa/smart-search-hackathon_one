@@ -65,6 +65,20 @@ def correct_tokens(tokens: list[str], vocabulary: set[str]) -> tuple[list[str], 
                 changed = True
             continue
 
+        # Check manual corrections for common misspellings
+        if normed in _MANUAL_CORRECTIONS:
+            corrected.append(_MANUAL_CORRECTIONS[normed])
+            changed = True
+            continue
+
+        # If pymorphy3 recognizes the word with good confidence, keep it
+        # (prevents correcting valid words like "шпиц" that aren't in product vocab)
+        if _morph is not None and token.isalpha():
+            parsed = _morph.parse(token)
+            if parsed and parsed[0].score >= 0.3:
+                corrected.append(token)
+                continue
+
         match = find_best_match(token, vocabulary)
         if match and match != token:
             corrected.append(match)
@@ -73,6 +87,21 @@ def correct_tokens(tokens: list[str], vocabulary: set[str]) -> tuple[list[str], 
             corrected.append(token)
 
     return corrected, changed
+
+
+# Manual corrections for common misspellings that fuzzy matching cannot handle
+_MANUAL_CORRECTIONS: dict[str, str] = {
+    "мантор": "монитор",
+    "маниор": "монитор",
+    "минотор": "монитор",
+    "нотубук": "ноутбук",
+    "натубук": "ноутбук",
+    "картрдж": "картридж",
+    "картирдж": "картридж",
+    "клвиатура": "клавиатура",
+    "корпьютер": "компьютер",
+    "компютер": "компьютер",
+}
 
 
 # Pre-filtered vocabulary caches for fast lookup
@@ -95,24 +124,28 @@ def find_best_match(token: str, vocabulary: set[str]) -> str | None:
     if token in _find_best_match_cache:
         return _find_best_match_cache[token]
     
-    # First try: same first 2 chars (covers most typos)
+    # Build candidate set from multiple prefix strategies
+    candidates_set: set[str] = set()
+    
+    # Strategy 1: same first 2 chars (covers most typos)
     prefix = token[:2]
-    candidates = _get_prefix_vocab(prefix, vocabulary)
+    candidates_set.update(_get_prefix_vocab(prefix, vocabulary))
     
-    # Also try first char only (handles first-char adjacent typos less well)
-    if len(candidates) < 10:
-        prefix1 = token[:1]
-        candidates = _get_prefix_vocab(prefix1, vocabulary)
+    # Strategy 2: same first char (covers typos in second char, e.g. "мантор"→"монитор")
+    prefix1 = token[:1]
+    for w in _get_prefix_vocab(prefix1, vocabulary):
+        candidates_set.add(w)
     
-    # Filter by similar length (±2 chars)
+    # Filter by similar length (±3 chars to be more generous)
     tlen = len(token)
-    candidates = [w for w in candidates if abs(len(w) - tlen) <= 2]
+    candidates = [w for w in candidates_set if abs(len(w) - tlen) <= 3]
     
     if not candidates:
+        _find_best_match_cache[token] = None
         return None
 
     if rapidfuzz_process is not None:
-        match = rapidfuzz_process.extractOne(token, candidates, score_cutoff=78)
+        match = rapidfuzz_process.extractOne(token, candidates, score_cutoff=70)
         if match is not None:
             result = str(match[0])
             _find_best_match_cache[token] = result

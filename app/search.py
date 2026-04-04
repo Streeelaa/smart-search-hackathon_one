@@ -16,6 +16,13 @@ logger = logging.getLogger(__name__)
 
 PERSONALIZATION_WEIGHT = 5.0
 
+# ---- Stop words — short/common words that slow FTS5 without adding value ----
+_FTS_STOP_WORDS = frozenset([
+    "для", "на", "по", "из", "при", "от", "до", "без", "под", "над",
+    "и", "в", "с", "к", "у", "о", "а", "не", "но", "за", "или",
+    "он", "она", "оно", "они", "это", "тот", "что", "как", "все",
+])
+
 # ---- Vocabulary (lazy-loaded once) ----
 _vocabulary: set[str] | None = None
 
@@ -48,8 +55,9 @@ _SEARCH_CACHE_MAX = 256
 def build_fts_query_terms(query: str) -> list[str]:
     """Build diverse search terms for FTS5 from user query.
 
-    Combines raw tokens (with inflections), lemmatised forms, and synonym
-    expansions for maximum recall.
+    Combines raw tokens (with inflections), lemmatised forms, synonym
+    expansions, AND raw (un-normalized) synonym values for maximum recall.
+    This ensures both singular and plural forms reach FTS5.
     """
     raw_tokens = tokenize(query)
     normalized = normalize_query(query)
@@ -58,13 +66,27 @@ def build_fts_query_terms(query: str) -> list[str]:
     except Exception:
         expanded = list(normalized)
 
+    # Also get raw synonym values (before normalization) to preserve plurals
+    raw_synonym_tokens: list[str] = []
+    try:
+        from app.synonyms import load_synonyms
+        syn_map = load_synonyms()
+        for token in normalized:
+            norm_key = normalize_text(token)
+            for syn_value in syn_map.get(norm_key, []):
+                for t in tokenize(syn_value):
+                    raw_synonym_tokens.append(t)
+    except Exception:
+        pass
+
     all_terms: list[str] = []
     seen: set[str] = set()
-    for term in raw_tokens + normalized + expanded:
-        if term and term not in seen:
+    for term in raw_tokens + normalized + expanded + raw_synonym_tokens:
+        if term and term not in seen and term not in _FTS_STOP_WORDS:
             seen.add(term)
             all_terms.append(term)
-    return all_terms
+    # Cap at 15 terms to prevent slow FTS queries
+    return all_terms[:15]
 
 
 def personalization_multiplier(
@@ -157,8 +179,32 @@ def search_products(
     if typo_corrected:
         fts_terms_corrected = list(_cached_build_fts_query_terms(corrected_query))
         fts_terms = list(dict.fromkeys(fts_terms + fts_terms_corrected))
-    candidate_limit = max(limit * 10, 200)
+    candidate_limit = max(limit * 10, 100)
     candidates = repository.search_fts5(fts_terms, limit=candidate_limit)
+
+    # 4b. Semantic expansion: only when FTS5 returns few results
+    semantic_categories: list[tuple[str, float]] = []
+    fts_result_count = len(candidates)
+    needs_semantic = fts_result_count < limit * 3  # e.g., < 30 for limit=10
+    try:
+        from app.semantic import semantic_engine
+        if semantic_engine._ready and needs_semantic:
+            sem_query = corrected_query if typo_corrected else query
+            semantic_categories = list(
+                semantic_engine.find_similar_categories_cached(sem_query, top_k=3)
+            )
+            if semantic_categories:
+                seen_ids = {p.id for p, _ in candidates}
+                for cat_name, cat_score in semantic_categories:
+                    if category_filter and cat_name != category_filter:
+                        continue
+                    cat_products = repository.list_products(category=cat_name, limit=10)
+                    for product in cat_products:
+                        if product.id not in seen_ids:
+                            seen_ids.add(product.id)
+                            candidates.append((product, cat_score * 2.0))
+    except Exception:
+        pass
 
     # 5. User profile
     profile = repository.get_user_profile(user_id) if user_id else None
@@ -208,6 +254,9 @@ def search_products(
 
         scored.append((product, total_score, reasons))
 
+    # 6b. If we got semantic category matches but no FTS results, add semantic reason
+    # (this helps for abstract queries like "канцтовары", "медикаменты")
+
     # 7. Sort by total score
     scored.sort(key=lambda x: x[1], reverse=True)
 
@@ -236,7 +285,7 @@ def search_products(
         total=len(results),
         personalized=bool(profile and profile.total_events > 0),
         mode=mode,
-        semantic_backend="fts5-bm25",
+        semantic_backend="sentence-transformers" if semantic_categories else "fts5-bm25",
         reranker_backend="personalization" if profile and profile.total_events > 0 else "bm25",
         search_time_ms=search_time_ms,
         facets=facets,

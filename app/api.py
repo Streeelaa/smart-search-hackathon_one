@@ -30,10 +30,19 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_warm_up():
-    """Pre-build vocabulary for typo correction on startup (background thread)."""
+    """Pre-build vocabulary for typo correction and semantic index on startup."""
     import asyncio
     loop = asyncio.get_event_loop()
-    loop.run_in_executor(None, warm_up)
+    loop.run_in_executor(None, _startup_init)
+
+
+def _startup_init():
+    """Initialize vocabulary + semantic index in background thread."""
+    warm_up()
+    try:
+        semantic_engine.build_index()
+    except Exception:
+        pass
 
 
 @app.get("/")

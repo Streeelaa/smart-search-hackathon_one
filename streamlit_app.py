@@ -57,8 +57,8 @@ QUICK_EXAMPLES: list[tuple[str, str]] = [
     ("фильтр", "Авто-фильтр vs воздушный"),
     ("ноутбук Lenovo", "Точный запрос по бренду"),
     ("бумага офисная", "Широкий запрос BM25"),
-    ("перчатки", "123 категории!"),
-    ("светильник", "LED vs люмин vs наружн"),
+    ("канцтовары", "Семантика + синонимы"),
+    ("перчтки", "Автокоррекция опечатки"),
 ]
 
 
@@ -410,6 +410,9 @@ def render_search_response(response: SearchResponse, user_id: str | None, compar
     if response.typo_corrected:
         st.info(f"✏️ Автокоррекция: **{response.query}** → **{response.corrected_query}**")
 
+    if response.semantic_backend and "sentence" in response.semantic_backend:
+        st.success("🧠 Семантическое расширение: найдены похожие категории через нейросеть")
+
     if response.expanded_terms:
         expanded_pills = " ".join(f"`{t}`" for t in response.expanded_terms)
         st.markdown(f"**Расширение синонимами:** {expanded_pills}")
@@ -464,7 +467,7 @@ def render_demo_scenarios_tab() -> None:
     st.markdown(
         f"<div class='hero-card'>"
         f"<strong>Как это работает:</strong> Запрос → Автокоррекция опечаток → Лемматизация + синонимы → FTS5 BM25 retrieval → "
-        f"Персонализация (контрактная история) → Фасетная фильтрация<br>"
+        f"Семантическое расширение (sentence-transformers) → Персонализация (контрактная история) → Фасетная фильтрация<br>"
         f"<span style='color:#5f8a7a;font-weight:600'>📦 {repository.count_products():,} товаров (СТЕ) · 👥 {repository.count_profiles():,} организаций · 📂 {repository.count_categories():,} категорий</span>"
         f"</div>",
         unsafe_allow_html=True,
@@ -697,6 +700,7 @@ def render_system_tab() -> None:
                 "backend": semantic_status.backend,
                 "model_name": semantic_status.model_name,
                 "indexed_products": semantic_status.indexed_products,
+                "categories_indexed": semantic_status.categories_indexed,
                 "last_error": semantic_status.last_error,
             }
         )
@@ -794,6 +798,8 @@ def main() -> None:
                 <span class="pipeline-arrow">→</span>
                 <span class="pipeline-step active">BM25 (FTS5)</span>
                 <span class="pipeline-arrow">→</span>
+                <span class="pipeline-step active">Семантический поиск</span>
+                <span class="pipeline-arrow">→</span>
                 <span class="pipeline-step active">Персонализация</span>
                 <span class="pipeline-arrow">→</span>
                 <span class="pipeline-step active">Фасетная фильтрация</span>
@@ -807,7 +813,8 @@ def main() -> None:
     st.sidebar.caption(f"📦 {repository.count_products():,} СТЕ · � {repository.count_profiles():,} организаций · 📂 {repository.count_categories():,} категорий")
     sem_st = semantic_engine.status()
     rr_st = reranker.status()
-    st.sidebar.caption(f"🔍 FTS5 BM25 · Reranker: {rr_st.backend} · ✏️ Автокоррекция")
+    sem_icon = "🟢" if sem_st.ready else "🔴"
+    st.sidebar.caption(f"🔍 FTS5 BM25 · {sem_icon} Семантика ({sem_st.categories_indexed} кат.) · ✏️ Автокоррекция")
 
     st.sidebar.markdown("---")
     active_user = st.session_state.get("selected_user_id", "")

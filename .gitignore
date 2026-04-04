@@ -12,8 +12,10 @@ smart_search.db
 # Large data files
 data/*.csv
 data/*.7z
+data/*.pkl
 
 # Temporary scripts
+_*.py
 _rewrite_core.py
 analyze_data.py
 extract_data.py

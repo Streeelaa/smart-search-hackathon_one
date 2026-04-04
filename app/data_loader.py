@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS contracts (
 
 CREATE INDEX IF NOT EXISTS idx_contracts_customer ON contracts(customer_inn);
 CREATE INDEX IF NOT EXISTS idx_contracts_product ON contracts(product_id);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 
 CREATE TABLE IF NOT EXISTS user_profiles_cache (
     user_id             TEXT PRIMARY KEY,

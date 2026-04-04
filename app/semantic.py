@@ -67,8 +67,7 @@ class SemanticSearchEngine:
         # Try loading from cache first
         if self._load_from_cache():
             self._ready = True
-            # Pre-load model so first query isn't slow
-            self._load_model()
+            # Model loaded lazily on first query — no need to pre-load here
             return
 
         self._load_model()

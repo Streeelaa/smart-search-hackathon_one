@@ -14,16 +14,31 @@ from app.semantic import semantic_engine
 from app.settings import settings
 from app.synonyms import get_synonym_map
 
-# Warm up vocabulary lazily — triggered on first typo-correcting search
-# (background thread removed to avoid SQLite concurrency issues)
-
-# Initialize semantic engine once per Streamlit session
-if "_semantic_initialized" not in st.session_state:
+# Warm up everything once per Streamlit session
+if "_warmup_done" not in st.session_state:
+    import threading
+    from app.search import warm_up as _warm_up_vocab
+    # 1. Build semantic index from cache (fast, no model load)
     try:
         semantic_engine.build_index()
     except Exception:
         pass
-    st.session_state["_semantic_initialized"] = True
+    # 2. Load sentence-transformer model in background thread
+    _model_thread = threading.Thread(target=semantic_engine._load_model, daemon=True)
+    _model_thread.start()
+    # 3. Build vocabulary (runs in parallel with model loading)
+    _warm_up_vocab()
+    # 4. Create category index if missing
+    try:
+        from app.data_loader import get_db_connection
+        _conn = get_db_connection()
+        _conn.execute("CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)")
+        _conn.close()
+    except Exception:
+        pass
+    # 5. Wait for model to finish loading
+    _model_thread.join()
+    st.session_state["_warmup_done"] = True
 
 
 st.set_page_config(

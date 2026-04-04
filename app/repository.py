@@ -233,9 +233,8 @@ class RealDataRepository:
     def build_vocabulary(self) -> set[str]:
         """Build vocabulary set from product titles + categories for typo correction.
         
-        Uses a separate connection to avoid blocking the main one.
+        Uses raw lowercase words only (no pymorphy3) for speed.
         """
-        from app.text_processing import normalize_token
         conn = get_db_connection()  # separate connection for thread safety
         vocab: set[str] = set()
         # Fetch distinct category names (fast — only 6506 rows)
@@ -245,19 +244,17 @@ class RealDataRepository:
                 clean = "".join(ch for ch in word if ch.isalnum())
                 if clean and len(clean) >= 2:
                     vocab.add(clean)
-                    norm = normalize_token(clean)
-                    if norm and norm != clean:
-                        vocab.add(norm)
-        # Fetch sample of titles (50K is enough for vocabulary)
-        for row in conn.execute("SELECT title FROM products ORDER BY RANDOM() LIMIT 50000"):
+        # Fetch evenly-spaced sample of titles (fast — no ORDER BY RANDOM)
+        total = conn.execute("SELECT COUNT(*) FROM products").fetchone()[0]
+        step = max(1, total // 30000)
+        for row in conn.execute(
+            "SELECT title FROM products WHERE rowid % ? = 0", (step,)
+        ):
             title = row["title"]
             for word in title.lower().split():
                 clean = "".join(ch for ch in word if ch.isalnum())
                 if clean and len(clean) >= 2:
                     vocab.add(clean)
-                    norm = normalize_token(clean)
-                    if norm and norm != clean:
-                        vocab.add(norm)
         conn.close()
         logger.info("Built vocabulary: %d terms", len(vocab))
         return vocab

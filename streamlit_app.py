@@ -1,5 +1,6 @@
 import pandas as pd
 import streamlit as st
+import html as html_module
 
 from app.demo_scenarios import get_demo_scenario, get_demo_scenarios
 from app.evaluation_compare import compare_search_modes
@@ -13,6 +14,9 @@ from app.semantic import semantic_engine
 from app.settings import settings
 from app.synonyms import get_synonym_map
 
+# Warm up vocabulary lazily — triggered on first typo-correcting search
+# (background thread removed to avoid SQLite concurrency issues)
+
 
 st.set_page_config(
     page_title="Умный поиск — zakupki.mos.ru",
@@ -22,30 +26,39 @@ st.set_page_config(
 )
 
 CATEGORY_ICONS: dict[str, str] = {
-    "ноутбуки": "💻", "оргтехника": "🖨️", "мебель": "🪑",
-    "периферия": "🖱️", "канцелярия": "📎", "серверы": "🖥️",
-    "проекторы": "📽️", "телефония": "📞", "по": "💿",
-    "освещение": "💡", "хозтовары": "🧹", "безопасность": "🔒",
-    "спецодежда": "👷", "электрика": "⚡", "климат": "❄️",
-    "планшеты": "📱", "смартфоны": "📲",
-    "сетевое оборудование": "🌐", "расходные материалы": "🗃️",
+    "ноутбук": "💻", "принтер": "🖨️", "мебель": "🪑", "кресл": "🪑",
+    "стол": "🪑", "бумаг": "📄", "канцеляр": "📎", "сервер": "🖥️",
+    "проектор": "📽️", "телефон": "📞", "освещен": "💡", "лампа": "💡",
+    "светильник": "💡", "хозяйств": "🧹", "безопасност": "🔒",
+    "спецодежд": "👷", "одежда": "👕", "халат": "👕", "костюм": "👕",
+    "электр": "⚡", "кабель": "⚡", "провод": "⚡",
+    "монитор": "🖥️", "мышь": "🖱️", "клавиатур": "⌨️",
+    "фильтр": "🔧", "насос": "🔧", "запасн": "🔧",
+    "лекарств": "💊", "препарат": "💊", "шприц": "💉",
+    "иммунодепресс": "💊", "противоопухол": "💊",
+    "перчатк": "🧤", "маска": "😷", "обувь": "👟",
+    "учебник": "📚", "тетрадь": "📓", "литератур": "📚",
+    "краск": "🎨", "мяч": "⚽", "спорт": "🏃",
+    "труб": "🔩", "замок": "🔒", "камер": "📷",
+    "масло": "🛢️", "игрушк": "🧸", "питан": "🔌",
 }
 
+# Real users from contract data
 USER_ROLE_LABELS: dict[str, str] = {
-    "user-1": "👨‍💻 IT-отдел",
-    "user-2": "🏢 АХО (хозотдел)",
-    "user-3": "📊 Бухгалтерия",
-    "user-4": "👔 Руководство",
-    "user-5": "🔐 Безопасность",
+    "7714338609": "🏥 Аптечный склад ДЗМ (фарма)",
+    "9701059930": "🚗 Автохозяйство (запчасти)",
+    "5051005670": "🏫 Школа (образование)",
+    "7701885820": "🏗️ Мосинжпроект (стройка)",
+    "9718062105": "🚜 Мосотделстрой (техника)",
 }
 
 QUICK_EXAMPLES: list[tuple[str, str]] = [
-    ("системник", "Разговорный → каталожный"),
-    ("монитр", "Опечатка → коррекция"),
-    ("бесперебойник", "Жаргон → ИБП"),
-    ("МФУ для бухгалтерии", "Аббревиатура"),
-    ("для офиса", "Широкий запрос"),
-    ("кабель витая пара", "Точный запрос"),
+    ("шприц", "Персонализация: аптека vs авто"),
+    ("фильтр", "Авто-фильтр vs воздушный"),
+    ("ноутбук Lenovo", "Точный запрос по бренду"),
+    ("бумага офисная", "Широкий запрос BM25"),
+    ("перчатки", "123 категории!"),
+    ("светильник", "LED vs люмин vs наружн"),
 ]
 
 
@@ -177,7 +190,6 @@ def inject_styles() -> None:
         .stMarkdown p,
         .stCaption,
         .stText,
-        .stAlert,
         [data-testid="stMetricLabel"],
         [data-testid="stMetricLabel"] p,
         [data-testid="stMetricValue"],
@@ -232,6 +244,14 @@ def inject_styles() -> None:
             font-size: 0.78rem; font-weight: 600;
         }
 
+        /* Highlight matched terms */
+        mark {
+            background: rgba(111, 141, 134, 0.25);
+            color: inherit;
+            padding: 1px 2px;
+            border-radius: 3px;
+        }
+
         /* Sidebar: white text on dark background */
         section[data-testid="stSidebar"] {
             background: #1e2a33 !important;
@@ -275,6 +295,18 @@ def inject_styles() -> None:
         section[data-testid="stSidebar"] hr {
             border-color: rgba(255, 255, 255, 0.15) !important;
         }
+
+        /* Fix st.success green-on-green: force dark text */
+        [data-testid="stAlert"] p,
+        [data-testid="stAlert"] strong {
+            color: #155724 !important;
+        }
+
+        /* Active sidebar user highlight */
+        section[data-testid="stSidebar"] .stButton > button[data-active="true"] {
+            background: linear-gradient(135deg, #2d6a4f 0%, #3a8a6a 100%) !important;
+            border: 2px solid #7cf5b5 !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -282,21 +314,38 @@ def inject_styles() -> None:
 
 
 def list_user_ids() -> list[str]:
-    user_ids = set()
-    if hasattr(repository, "user_profiles"):
-        user_ids.update(getattr(repository, "user_profiles").keys())
-    if hasattr(repository, "events"):
-        user_ids.update(event.user_id for event in getattr(repository, "events"))
-    user_ids.update({"user-1", "user-2", "user-3", "user-4", "user-5"})
-    return sorted(user_ids)
+    """Return demo user IDs + top real users from DB."""
+    demo_ids = list(USER_ROLE_LABELS.keys())
+    try:
+        db_users = repository.list_users(limit=20)
+        db_ids = [u["user_id"] for u in db_users if u["user_id"] not in demo_ids]
+        return demo_ids + db_ids
+    except Exception:
+        return demo_ids
 
 
 def format_user_label(uid: str) -> str:
-    return USER_ROLE_LABELS.get(uid, uid)
+    if uid in USER_ROLE_LABELS:
+        return USER_ROLE_LABELS[uid]
+    # Try to get org name from DB
+    try:
+        profile_info = repository.get_user_profile(uid)
+        db_users = repository.list_users(limit=100)
+        for u in db_users:
+            if u["user_id"] == uid:
+                name = u["user_name"][:40]
+                return f"🏛 {name} (ИНН {uid})"
+    except Exception:
+        pass
+    return f"🏛 ИНН {uid}"
 
 
 def category_icon(category: str) -> str:
-    return CATEGORY_ICONS.get(category.lower(), "📦")
+    cat_lower = category.lower()
+    for key, icon in CATEGORY_ICONS.items():
+        if key in cat_lower:
+            return icon
+    return "📦"
 
 
 def format_price(price: float) -> str:
@@ -349,23 +398,41 @@ def run_demo_events(scenario_key: str) -> str:
 
 def render_search_response(response: SearchResponse, user_id: str | None, compare_modes: bool, key_prefix: str, show_debug: bool = False) -> None:
     render_pipeline(response)
-    summary_cols = st.columns(4)
+    summary_cols = st.columns(5)
     summary_cols[0].metric("Найдено", response.total)
     summary_cols[1].metric("Персонализация", "вкл" if response.personalized else "выкл")
     summary_cols[2].metric("Режим", response.mode)
     correction_label = response.corrected_query if response.corrected_query and response.corrected_query != response.query else "—"
     summary_cols[3].metric("Коррекция", correction_label)
+    speed_color = "🟢" if response.search_time_ms < 200 else "🟡" if response.search_time_ms < 1000 else "🔴"
+    summary_cols[4].metric(f"{speed_color} Скорость", f"{response.search_time_ms:.0f} мс")
+
+    if response.typo_corrected:
+        st.info(f"✏️ Автокоррекция: **{response.query}** → **{response.corrected_query}**")
 
     if response.expanded_terms:
         expanded_pills = " ".join(f"`{t}`" for t in response.expanded_terms)
         st.markdown(f"**Расширение синонимами:** {expanded_pills}")
 
+    # Category facets
+    if response.facets:
+        st.markdown("**Категории в результатах:**")
+        facet_cols = st.columns(min(len(response.facets), 6))
+        for i, facet in enumerate(response.facets[:6]):
+            icon = category_icon(facet.category)
+            facet_cols[i].markdown(
+                f"<div style='text-align:center;padding:6px 8px;border-radius:12px;background:rgba(111,141,134,0.1);font-size:0.82rem'>"
+                f"{icon} <b>{facet.category[:28]}</b><br><small>{facet.count} шт</small></div>",
+                unsafe_allow_html=True,
+            )
+
     if show_debug:
         with st.expander("Технические детали", expanded=False):
-            info_cols = st.columns(3)
+            info_cols = st.columns(4)
             info_cols[0].metric("Semantic", response.semantic_backend or "off")
             info_cols[1].metric("Reranker", response.reranker_backend or "off")
             info_cols[2].metric("Mode", response.mode)
+            info_cols[3].metric("Search ms", f"{response.search_time_ms:.1f}")
 
     if response.items:
         for index, item in enumerate(response.items, start=1):
@@ -384,7 +451,8 @@ def render_search_response(response: SearchResponse, user_id: str | None, compar
                 "Найдено": candidate.total,
                 "Семантика": candidate.semantic_backend or "off",
                 "Реранкер": candidate.reranker_backend or "off",
-                "Топ результаты": " | ".join(item.product.title for item in candidate.items) or "нет",
+                "Время": f"{candidate.search_time_ms:.0f} мс",
+                "Топ результаты": " | ".join(item.product.title[:40] for item in candidate.items) or "нет",
             })
         st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
@@ -394,7 +462,11 @@ def render_demo_scenarios_tab() -> None:
     st.caption("Основной пользовательский экран: вводите запрос и получаете итоговую выдачу без ручного выбора технического режима.")
 
     st.markdown(
-        f"<div class='hero-card'><strong>Как это работает:</strong> smart-search pipeline: correction → synonyms → semantic → rerank → LTR. В каталоге <b>{repository.count_products()}</b> товаров.</div>",
+        f"<div class='hero-card'>"
+        f"<strong>Как это работает:</strong> Запрос → Автокоррекция опечаток → Лемматизация + синонимы → FTS5 BM25 retrieval → "
+        f"Персонализация (контрактная история) → Фасетная фильтрация<br>"
+        f"<span style='color:#5f8a7a;font-weight:600'>📦 {repository.count_products():,} товаров (СТЕ) · 👥 {repository.count_profiles():,} организаций · 📂 {repository.count_categories():,} категорий</span>"
+        f"</div>",
         unsafe_allow_html=True,
     )
 
@@ -406,24 +478,44 @@ def render_demo_scenarios_tab() -> None:
     demo_user_options = ["", *list_user_ids()]
     with st.form("demo_quick_search_form"):
         demo_query = st.text_input("Введите запрос", value=st.session_state.get("demo_query", ""))
-        top_cols = st.columns([2, 1])
-        demo_limit = top_cols[0].number_input("Сколько результатов", min_value=1, max_value=500, value=5, step=1, key="demo-limit")
+        top_cols = st.columns([2, 1, 1])
+        demo_limit = top_cols[0].number_input("Результатов", min_value=1, max_value=500, value=10, step=1, key="demo-limit")
         show_advanced = top_cols[1].checkbox("Расширенные настройки", value=False, key="demo-show-advanced")
+        show_facet_filter = top_cols[2].checkbox("Фильтр по категории", value=False, key="demo-show-facet")
 
-        demo_user_id = ""
+        # Use sidebar-selected user by default
+        sidebar_user = st.session_state.get("selected_user_id", "")
+        demo_user_id = sidebar_user
         demo_mode = "hybrid"
         demo_compare_modes = False
+        demo_category_filter = None
         if show_advanced:
             advanced_cols = st.columns(3)
-            demo_user_id = advanced_cols[0].selectbox("Пользователь", options=demo_user_options, format_func=lambda u: format_user_label(u) if u else "— без персонализации —", index=0, key="demo-user")
+            default_idx = demo_user_options.index(sidebar_user) if sidebar_user in demo_user_options else 0
+            demo_user_id = advanced_cols[0].selectbox("Пользователь", options=demo_user_options, format_func=lambda u: format_user_label(u) if u else "— без персонализации —", index=default_idx, key="demo-user")
             demo_mode = advanced_cols[1].selectbox("Режим", options=["keyword", "semantic", "hybrid"], index=2, key="demo-mode")
             demo_compare_modes = advanced_cols[2].checkbox("Сравнить режимы", value=False, key="demo-compare")
+        if show_facet_filter:
+            cat_input = st.text_input("Введите часть названия категории для фильтра", value="", key="demo-cat-input")
+            if cat_input:
+                matching_cats = repository.search_categories(cat_input, limit=10)
+                if matching_cats:
+                    cat_options = [""] + [c[0] for c in matching_cats]
+                    demo_category_filter = st.selectbox(
+                        "Фильтр категории",
+                        options=cat_options,
+                        format_func=lambda c: f"{category_icon(c)} {c} ({next((n for cn, n in matching_cats if cn == c), '')})" if c else "— все категории —",
+                        key="demo-cat-filter",
+                    ) or None
         demo_submitted = st.form_submit_button("🔎 Искать")
+
+    if sidebar_user and not show_advanced:
+        st.info(f"🔍 Поиск от имени: **{format_user_label(sidebar_user)}** (выбран в сайдбаре)")
 
     if demo_submitted:
         st.session_state["demo_query"] = demo_query
         st.session_state["last_query"] = demo_query
-        demo_response = search_products(query=demo_query, limit=demo_limit, user_id=demo_user_id or None, mode=demo_mode)
+        demo_response = search_products(query=demo_query, limit=demo_limit, user_id=demo_user_id or None, mode=demo_mode, category_filter=demo_category_filter)
         render_search_response(
             response=demo_response,
             user_id=demo_user_id or None,
@@ -481,7 +573,7 @@ def render_demo_scenarios_tab() -> None:
         with compare_cols[0]:
             st.markdown("#### Базовый поиск")
             baseline_rows = [
-                {"#": index + 1, "Товар": f"{category_icon(item.product.category)} {item.product.title}", "Цена": format_price(item.product.price), "Score": f"{item.score:.3f}"}
+                {"#": index + 1, "Товар": f"{category_icon(item.product.category)} {item.product.title}", "Категория": item.product.category[:40], "Score": f"{item.score:.1f}"}
                 for index, item in enumerate(baseline_response.items)
             ]
             st.dataframe(pd.DataFrame(baseline_rows), width="stretch", hide_index=True)
@@ -493,7 +585,7 @@ def render_demo_scenarios_tab() -> None:
             else:
                 st.caption(f"Пользователь: {format_user_label(scenario.user_id)}")
                 personalized_rows = [
-                    {"#": index + 1, "Товар": f"{category_icon(item.product.category)} {item.product.title}", "Цена": format_price(item.product.price), "Score": f"{item.score:.3f}"}
+                    {"#": index + 1, "Товар": f"{category_icon(item.product.category)} {item.product.title}", "Категория": item.product.category[:40], "Score": f"{item.score:.1f}"}
                     for index, item in enumerate(personalized_response.items)
                 ]
                 st.dataframe(pd.DataFrame(personalized_rows), width="stretch", hide_index=True)
@@ -502,10 +594,16 @@ def render_demo_scenarios_tab() -> None:
 def result_card(item, user_id: str | None, mode: str, rank: int, key_prefix: str = "search") -> None:
     product = item.product
     icon = category_icon(product.category)
-    price_str = format_price(product.price)
-    score_color = "#27ae60" if item.score >= 50 else "#e67e22" if item.score >= 20 else "#95a5a6"
-    tags_html = " ".join(f"<code>{t}</code>" for t in (product.tags or []))
-    reasons_html = " ".join(f"<code>{r}</code>" for r in (item.reasons or []))
+    score_color = "#27ae60" if item.score >= 20 else "#e67e22" if item.score >= 10 else "#95a5a6"
+    reasons_html = " ".join(f"<code>{html_module.escape(r)}</code>" for r in (item.reasons or []))
+    attrs_str = product.attributes.get("raw", "")[:150] if product.attributes else ""
+    # Use highlighted title if available
+    display_title = item.highlight_title if item.highlight_title else html_module.escape(product.title)
+
+    # Personalization indicator
+    pers_badge = ""
+    if any("буст" in r for r in (item.reasons or [])):
+        pers_badge = '<span style="background:#d4edda;color:#155724;padding:2px 8px;border-radius:8px;font-size:0.75rem;font-weight:600;margin-left:6px">⚡ Персонализировано</span>'
 
     card_html = f"""
     <div class="product-card">
@@ -513,30 +611,18 @@ def result_card(item, user_id: str | None, mode: str, rank: int, key_prefix: str
             <span class="rank-badge">#{rank}</span>
             <span class="cat-icon">{icon}</span>
             <div class="title-block">
-                <strong>{product.title}</strong><br>
-                <small style="color:#888">SKU {product.sku} · {product.category}</small>
+                <strong>{display_title}</strong>{pers_badge}<br>
+                <small style="color:#888">ID {product.id} · {html_module.escape(product.category)}</small>
             </div>
-            <span class="price-tag">{price_str}</span>
+            <span class="score-badge" style="background:{score_color};color:#fff;padding:4px 10px;border-radius:12px;font-weight:700">{item.score:.1f}</span>
         </div>
         <div class="card-body">
-            <p style="margin:0 0 6px">{product.description or 'Без описания'}</p>
-            {f'<p style="margin:0 0 4px">Теги: {tags_html}</p>' if tags_html else ''}
-            {f'<p style="margin:0">Причины: {reasons_html}</p>' if reasons_html else ''}
-            <span class="score-badge" style="background:{score_color}">{item.score:.2f}</span>
+            {f'<p style="margin:0 0 4px;font-size:0.85rem;color:#666">{html_module.escape(attrs_str)}</p>' if attrs_str else ''}
+            {f'<p style="margin:0">{reasons_html}</p>' if reasons_html else ''}
         </div>
     </div>
     """
     st.markdown(card_html, unsafe_allow_html=True)
-
-    action_cols = st.columns(4)
-    evt_types = [("👆 Click", "click"), ("⭐ Избранное", "favorite"), ("🛒 Покупка", "purchase")]
-    for col, (label, etype) in zip(action_cols[:3], evt_types):
-        if col.button(label, key=f"{key_prefix}-{etype}-{mode}-{user_id}-{product.id}-{rank}", use_container_width=True):
-            repository.add_event(EventCreate(user_id=user_id or "guest-demo", event_type=etype, item_id=product.id))
-            st.success(f"{etype} → {product.title}")
-    if action_cols[3].button("👤 Профиль", key=f"{key_prefix}-profile-{mode}-{user_id}-{product.id}-{rank}", use_container_width=True):
-        st.session_state["selected_user_id"] = user_id or "guest-demo"
-        st.info("Профиль выбран во вкладке Профили")
 
 
 def render_search_tab() -> None:
@@ -567,56 +653,24 @@ def render_search_tab() -> None:
 def render_profiles_tab() -> None:
     st.markdown("## 👤 Профили и сигналы")
     users = list_user_ids()
-    default_user = st.session_state.get("selected_user_id", users[0] if users else "user-1")
+    default_user = st.session_state.get("selected_user_id", users[0] if users else "7714338609")
     selected_user = st.selectbox("Пользователь", options=users, format_func=format_user_label, index=users.index(default_user) if default_user in users else 0)
     profile = repository.get_user_profile(selected_user)
-    events = repository.list_user_events(selected_user)
 
     metrics = st.columns(4)
-    metrics[0].metric("Всего событий", profile.total_events)
+    metrics[0].metric("Всего контрактов", profile.total_events)
     metrics[1].metric("Средняя цена", format_price(profile.average_price) if profile.average_price else "—")
-    metrics[2].metric("Недавних запросов", len(profile.recent_queries))
-    metrics[3].metric("Категорий", len(profile.category_affinity))
+    metrics[2].metric("Категорий в профиле", len(profile.category_affinity))
+    metrics[3].metric("User ID (ИНН)", selected_user)
 
-    cols = st.columns(2)
-    with cols[0]:
-        st.markdown("### Категории")
-        if profile.category_affinity:
-            sorted_cats = dict(sorted(profile.category_affinity.items(), key=lambda x: x[1], reverse=True))
-            labels = [f"{category_icon(k)} {k}" for k in sorted_cats]
-            st.bar_chart(pd.DataFrame({"score": list(sorted_cats.values())}, index=labels))
-        else:
-            st.info("Нет данных")
-    with cols[1]:
-        st.markdown("### Теги")
-        if profile.tag_affinity:
-            sorted_tags = dict(sorted(list(profile.tag_affinity.items())[:10], key=lambda x: x[1], reverse=True))
-            st.bar_chart(pd.DataFrame({"score": sorted_tags}))
-        else:
-            st.info("Нет данных")
-
-    st.markdown("### Недавние запросы")
-    if profile.recent_queries:
-        st.markdown(" · ".join(f"`{q}`" for q in profile.recent_queries))
+    st.markdown("### Категории закупок (aффинити)")
+    if profile.category_affinity:
+        sorted_cats = dict(sorted(profile.category_affinity.items(), key=lambda x: x[1], reverse=True))
+        labels = [f"{category_icon(k)} {k[:50]}" for k in sorted_cats]
+        values = list(sorted_cats.values())
+        st.bar_chart(pd.DataFrame({"аффинити": values}, index=labels))
     else:
-        st.caption("Пока нет запросов")
-
-    st.markdown("### История событий")
-    if events:
-        type_icons = {"click": "👆", "favorite": "⭐", "purchase": "🛒", "search": "🔍", "view": "👁"}
-        event_rows = [
-            {
-                "ID": event.event_id,
-                "Время": event.timestamp,
-                "Тип": f"{type_icons.get(event.event_type, '📌')} {event.event_type}",
-                "Товар ID": str(event.item_id or "—"),
-                "Запрос": event.query or "",
-            }
-            for event in events
-        ]
-        st.dataframe(pd.DataFrame(event_rows), width="stretch", hide_index=True)
-    else:
-        st.info("У пользователя пока нет событий")
+        st.info("Нет данных о закупках")
 
 
 def render_system_tab() -> None:
@@ -626,11 +680,12 @@ def render_system_tab() -> None:
     semantic_status = semantic_engine.status()
     reranker_status = reranker.status()
 
-    top_cols = st.columns(4)
-    top_cols[0].metric("📦 Каталог", repository.count_products())
+    top_cols = st.columns(5)
+    top_cols[0].metric("📦 Каталог", f"{repository.count_products():,}")
     top_cols[1].metric("📊 События", repository.count_events())
-    top_cols[2].metric("👥 Профили", repository.count_profiles())
-    top_cols[3].metric("💾 Хранилище", repository.backend_name())
+    top_cols[2].metric("👥 Профили", f"{repository.count_profiles():,}")
+    top_cols[3].metric("📂 Категории", f"{repository.count_categories():,}")
+    top_cols[4].metric("💾 Хранилище", repository.backend_name())
 
     engine_cols = st.columns(2)
     with engine_cols[0]:
@@ -730,27 +785,46 @@ def main() -> None:
     st.markdown(
         """
         <div class="hero-card">
-            <h1>Умный поиск &mdash; zakupki.mos.ru</h1>
-            <p>Correction → Synonyms → Semantic (E5-large) → Rerank (BGE-v2-m3) → LTR (LightGBM) → Персонализация</p>
+            <h1>🔍 Персонализированный умный поиск</h1>
+            <p style="font-size:1.1rem;margin-bottom:0.5rem">Портал закупок zakupki.mos.ru</p>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.5rem">
+                <span class="pipeline-step active">Автокоррекция опечаток</span>
+                <span class="pipeline-arrow">→</span>
+                <span class="pipeline-step active">Лемматизация + синонимы</span>
+                <span class="pipeline-arrow">→</span>
+                <span class="pipeline-step active">BM25 (FTS5)</span>
+                <span class="pipeline-arrow">→</span>
+                <span class="pipeline-step active">Персонализация</span>
+                <span class="pipeline-arrow">→</span>
+                <span class="pipeline-step active">Фасетная фильтрация</span>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     st.sidebar.markdown("### 🏛 Control Room")
-    st.sidebar.caption(f"📦 {repository.count_products()} товаров · 📊 {repository.count_events()} событий")
+    st.sidebar.caption(f"📦 {repository.count_products():,} СТЕ · � {repository.count_profiles():,} организаций · 📂 {repository.count_categories():,} категорий")
     sem_st = semantic_engine.status()
     rr_st = reranker.status()
-    sem_icon = "🟢" if sem_st.ready else "🔴"
-    rr_icon = "🟢" if rr_st.ready else "🔴"
-    st.sidebar.caption(f"Semantic: {sem_icon} {sem_st.backend}")
-    st.sidebar.caption(f"Reranker: {rr_icon} {rr_st.backend}")
+    st.sidebar.caption(f"🔍 FTS5 BM25 · Reranker: {rr_st.backend} · ✏️ Автокоррекция")
 
     st.sidebar.markdown("---")
+    active_user = st.session_state.get("selected_user_id", "")
+    if active_user:
+        st.sidebar.markdown(f"**Активный профиль:** {format_user_label(active_user)}")
+    else:
+        st.sidebar.markdown("Профиль не выбран")
+
     st.sidebar.markdown("Быстрый профиль:")
-    for uid in list_user_ids():
-        if st.sidebar.button(format_user_label(uid), key=f"sb-{uid}", use_container_width=True):
-            st.session_state["selected_user_id"] = uid
+    for uid in USER_ROLE_LABELS:
+        is_active = (uid == active_user)
+        label = f"✅ {USER_ROLE_LABELS[uid]}" if is_active else USER_ROLE_LABELS[uid]
+        if st.sidebar.button(label, key=f"sb-{uid}", use_container_width=True):
+            if is_active:
+                st.session_state["selected_user_id"] = ""
+            else:
+                st.session_state["selected_user_id"] = uid
             st.rerun()
 
     if st.sidebar.button("🔄 Сброс demo", key="sidebar-reset-demo", use_container_width=True):

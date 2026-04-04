@@ -9,14 +9,14 @@ from app.reranker import reranker
 from app.schemas import EvaluationComparisonResponse, EvaluationSummary, Event, EventCreate, HealthResponse, ImportRequest, ImportResult, Product, RerankerStatusResponse, SearchMode, SearchResponse, SemanticStatusResponse, StorageStatusResponse, UserProfile
 from app.semantic import semantic_engine
 from app.settings import settings
-from app.search import search_products
+from app.search import search_products, warm_up
 from app.synonyms import get_synonym_map
 
 
 app = FastAPI(
     title="Smart Search Hackathon API",
-    description="MVP backend for personalized smart search over catalog products.",
-    version="0.2.0",
+    description="Персонализированный умный поиск продукции для портала закупок zakupki.mos.ru",
+    version="1.0.0",
 )
 
 app.add_middleware(
@@ -26,6 +26,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def startup_warm_up():
+    """Pre-build vocabulary for typo correction on startup (background thread)."""
+    import asyncio
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, warm_up)
 
 
 @app.get("/")
@@ -92,8 +100,32 @@ def search(
     limit: int = Query(default=10, ge=1, le=50),
     mode: SearchMode = Query(default="hybrid", description="keyword, semantic or hybrid mode."),
     user_id: str | None = Query(default=None, description="Optional user id for personalized ranking."),
+    category: str | None = Query(default=None, description="Filter by category name."),
 ) -> SearchResponse:
-    return search_products(query=q, limit=limit, user_id=user_id, mode=mode)
+    return search_products(query=q, limit=limit, user_id=user_id, mode=mode, category_filter=category)
+
+
+@app.get("/catalog/categories")
+def list_categories(
+    q: str | None = Query(default=None, description="Filter categories by substring."),
+    limit: int = Query(default=50, ge=1, le=500),
+) -> list[dict]:
+    """List categories with product counts. Optionally filter by substring."""
+    if q:
+        cats = repository.search_categories(q, limit=limit)
+    else:
+        cats = repository.get_all_categories(limit=limit)
+    return [{"category": c, "count": n} for c, n in cats]
+
+
+@app.get("/search/suggest")
+def search_suggest(
+    q: str = Query(min_length=1, description="Partial query for suggestions."),
+    limit: int = Query(default=5, ge=1, le=20),
+) -> list[dict]:
+    """Return search suggestions based on category matches."""
+    cats = repository.search_categories(q, limit=limit)
+    return [{"suggestion": c, "type": "category", "count": n} for c, n in cats]
 
 
 @app.get("/search/synonyms", response_model=dict[str, list[str]])

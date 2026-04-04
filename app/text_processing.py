@@ -57,6 +57,13 @@ def correct_tokens(tokens: list[str], vocabulary: set[str]) -> tuple[list[str], 
         if token in vocabulary or len(token) < 4:
             corrected.append(token)
             continue
+        # Also check normalized form
+        normed = normalize_token(token)
+        if normed in vocabulary:
+            corrected.append(normed)
+            if normed != token:
+                changed = True
+            continue
 
         match = find_best_match(token, vocabulary)
         if match and match != token:
@@ -68,11 +75,50 @@ def correct_tokens(tokens: list[str], vocabulary: set[str]) -> tuple[list[str], 
     return corrected, changed
 
 
-def find_best_match(token: str, vocabulary: set[str]) -> str | None:
-    if rapidfuzz_process is not None:
-        match = rapidfuzz_process.extractOne(token, list(vocabulary), score_cutoff=78)
-        if match is not None:
-            return str(match[0])
+# Pre-filtered vocabulary caches for fast lookup
+_vocab_by_prefix: dict[str, list[str]] = {}
+_find_best_match_cache: dict[str, str | None] = {}
 
-    fallback = get_close_matches(token, vocabulary, n=1, cutoff=0.75)
-    return fallback[0] if fallback else None
+
+def _get_prefix_vocab(prefix: str, vocabulary: set[str]) -> list[str]:
+    """Get vocabulary subset with same first 2 chars for faster fuzzy matching."""
+    if prefix not in _vocab_by_prefix:
+        _vocab_by_prefix[prefix] = [w for w in vocabulary if w.startswith(prefix)]
+    return _vocab_by_prefix[prefix]
+
+
+def find_best_match(token: str, vocabulary: set[str]) -> str | None:
+    if len(token) < 3:
+        return None
+
+    # Check cache first (vocabulary is stable at runtime)
+    if token in _find_best_match_cache:
+        return _find_best_match_cache[token]
+    
+    # First try: same first 2 chars (covers most typos)
+    prefix = token[:2]
+    candidates = _get_prefix_vocab(prefix, vocabulary)
+    
+    # Also try first char only (handles first-char adjacent typos less well)
+    if len(candidates) < 10:
+        prefix1 = token[:1]
+        candidates = _get_prefix_vocab(prefix1, vocabulary)
+    
+    # Filter by similar length (±2 chars)
+    tlen = len(token)
+    candidates = [w for w in candidates if abs(len(w) - tlen) <= 2]
+    
+    if not candidates:
+        return None
+
+    if rapidfuzz_process is not None:
+        match = rapidfuzz_process.extractOne(token, candidates, score_cutoff=78)
+        if match is not None:
+            result = str(match[0])
+            _find_best_match_cache[token] = result
+            return result
+
+    fallback = get_close_matches(token, candidates, n=1, cutoff=0.75)
+    result = fallback[0] if fallback else None
+    _find_best_match_cache[token] = result
+    return result

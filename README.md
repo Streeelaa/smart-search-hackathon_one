@@ -1,173 +1,154 @@
-# Умный поиск продукции — zakupki.mos.ru
+# 🔍 Персонализированный умный поиск продукции — zakupki.mos.ru
 
-Персонализированная поисковая система для портала закупок Москвы.
-Гибридный поиск с коррекцией опечаток, раскрытием синонимов, семантическим пониманием запросов и персонализацией по истории пользователя.
+Персонализированная поисковая система для Портала поставщиков Москвы, работающая на **реальных данных госзакупок**.
+
+> **542 993 товара (СТЕ)** · **2 010 224 контракта** · **4 192 организации** · **6 506 категорий**
 
 ## Ключевые возможности
 
-| Возможность | Описание |
-|---|---|
-| Коррекция опечаток | монитр -> монитор (rapidfuzz + difflib) |
-| Синонимы и жаргон | системник -> системный блок, ПК, компьютер, десктоп |
-| Аббревиатуры | МФУ -> многофункциональное устройство, ИБП -> UPS |
-| Морфология | ноутбуки = ноутбук = ноутбуков (pymorphy3) |
-| Семантический поиск | E5-large (1024-dim), multilingual |
-| Реранкинг | BGE-reranker-v2-m3 cross-encoder + heuristic fallback |
-| LTR (Learning to Rank) | LightGBM lambdarank на 9 фичах |
-| Персонализация | Профили на основе кликов, покупок, избранного |
-| Гибридный режим | keyword + semantic + rerank + LTR + personalization |
-| Кеширование | SHA256-based .npy cache эмбеддингов |
-
-## Данные
-
-- Каталог: 170 товаров в 18 категориях
-- Синонимы: 136 групп (аббревиатуры, жаргон, разговорные формы)
-- События: 543 пользовательских события от 5 профилей
-- Evaluation: 20 тестовых кейсов, 5 метрик (Hit@3, MRR@10, NDCG@10, Precision@3, Recall@10)
-- Demo-сценарии: 5 готовых сценариев для жюри
+| Возможность | Реализация | Пример |
+|---|---|---|
+| **BM25 полнотекстовый поиск** | SQLite FTS5 (unicode61) с взвешиванием полей | title:10, category:5, attributes:1 |
+| **Автокоррекция опечаток** | rapidfuzz (score_cutoff=78) по словарю 542K товаров | монитр → монитор |
+| **Морфология** | pymorphy3 — лемматизация для русского языка | ноутбуки = ноутбук |
+| **Синонимы** | 136 групп (аббревиатуры, жаргон, проф. термины) | МФУ → многофункциональное устройство |
+| **Персонализация** | Мультипликативный буст по контрактной истории | Аптека: «шприц» → иммунодепрессанты (+146%) |
+| **Фасетная фильтрация** | Категории товаров из результатов поиска | 6506 категорий с фильтром |
+| **Подсветка совпадений** | `<mark>` теги на совпавших токенах | **ноутбук** Lenovo ThinkPad |
+| **Замер скорости** | perf_counter на каждый запрос | < 100мс на 542K товаров |
 
 ## Архитектура (Pipeline)
 
 ```
 Запрос пользователя
-  |
-[1] Токенизация + морфологическая нормализация (pymorphy3)
-  |
-[2] Коррекция опечаток (rapidfuzz, score_cutoff=78)
-  |
-[3] Расширение синонимами (136 групп из data/synonyms.json)
-  |
-[4] Параллельный retrieval:
-    - Keyword: лексический скоринг по полям (title x3, aliases x2.7, tags x2)
-    - Semantic: cosine similarity через E5-large эмбеддинги
-  |
-[5] Reranking (BGE cross-encoder или heuristic fallback)
-  |
-[6] LTR boost (LightGBM lambdarank, 9 features)
-  |
-[7] Персонализация (category/tag affinity + ценовая близость)
-  |
-Ранжированные результаты
+  │
+  ├── [1] Токенизация + морфологическая лемматизация (pymorphy3)
+  │
+  ├── [2] Автокоррекция опечаток (rapidfuzz по словарю 542K товаров)
+  │
+  ├── [3] Расширение синонимами (136 групп из data/synonyms.json)
+  │
+  ├── [4] FTS5 BM25 retrieval (взвешенные колонки: title ×10, category ×5, attrs ×1)
+  │
+  ├── [5] Scoring:
+  │       - BM25 score (fulltext relevance)
+  │       - Title match bonus (+5.0 за точное совпадение фразы)
+  │       - Category match bonus (+1.0)
+  │       - Персонализация: score × (1 + category_affinity × 5.0)
+  │
+  ├── [6] Фасетная агрегация (категории в результатах)
+  │
+  └── Ранжированные результаты с подсветкой и пояснениями
 ```
+
+## Персонализация
+
+Система строит **профиль каждой организации** на основе истории контрактов (2M+ записей):
+
+- Для каждого заказчика (по ИНН) рассчитывается **category_affinity** — доля каждой категории в закупках
+- При поиске, товары из «любимых» категорий получают **мультипликативный буст** до ×6.0
+- Демо: запрос «шприц» от **Аптечного склада ДЗМ** → иммунодепрессанты в шприцах первыми (+146%)
+- Тот же «шприц» от **Автохозяйства** → обычные медицинские шприцы
+
+## Метрики качества
+
+| Метрика | Значение |
+|---|---|
+| Hit@3 | **1.000** |
+| MRR@10 | **0.917** |
+| NDCG@10 | **0.967** |
+| Precision@3 | 1.000 |
+| Recall@10 | 0.967 |
+
+Evaluation на 8 реальных запросах (ноутбук Acer, бумага офисная, картридж лазерный, монитор Dell и др.)
 
 ## Технологический стек
 
-- Backend: FastAPI + Uvicorn
-- Frontend: Streamlit (интерактивный demo UI)
-- Семантика: sentence-transformers (intfloat/multilingual-e5-large, 1024-dim)
-- Реранкер: cross-encoder (BAAI/bge-reranker-v2-m3)
-- LTR: LightGBM lambdarank
-- Морфология: pymorphy3 (LRU кеш 4096 токенов)
-- Нечёткий поиск: rapidfuzz
-- Хранилище: In-memory / SQLAlchemy (SQLite / PostgreSQL)
-- Тесты: pytest (34 теста)
+| Компонент | Технология |
+|---|---|
+| Backend API | FastAPI + Uvicorn |
+| Web UI | Streamlit |
+| Поисковый движок | SQLite FTS5 (BM25) |
+| Морфология | pymorphy3 (LRU cache 4096) |
+| Нечёткий поиск | rapidfuzz |
+| Персонализация | Контрактная история → category affinity → multiplicative boost |
+| Хранилище | SQLite (WAL mode, 64MB cache) |
+| Python | 3.12+ |
+
+> Архитектура намеренно **легковесная**: без GPU, без Elasticsearch, без внешних API. Всё работает на одной машине с SSD за < 100мс.
 
 ## Структура проекта
 
 ```
-main.py                  - Точка входа (uvicorn)
-streamlit_app.py         - Web UI для демо
-requirements.txt
+main.py                  # Точка входа (uvicorn)
+streamlit_app.py         # Web UI
+requirements.txt         # Зависимости
 app/
-  api.py                 - FastAPI endpoints
-  schemas.py             - Pydantic модели
-  search.py              - Гибридный поиск + персонализация
-  semantic.py            - E5-large с кешированием
-  reranker.py            - BGE cross-encoder / heuristic
-  ltr.py                 - LightGBM Learning-to-Rank
-  text_processing.py     - Токенизация, морфология, коррекция
-  synonyms.py            - Расширение синонимами
-  repository.py          - In-memory / SQL хранилище
-  evaluation.py          - 20 кейсов, 5 метрик
-  demo_scenarios.py      - 5 demo-сценариев
-  ingestion.py           - Импорт каталогов и событий
-  settings.py            - Переменные окружения
-  db.py / db_models.py   - SQLAlchemy
-  catalog_loader.py      - Загрузка каталога
+  api.py                 # FastAPI endpoints (search, catalog, categories, suggest, metrics)
+  schemas.py             # Pydantic модели (Product, SearchResponse, CategoryFacet, ...)
+  search.py              # Двухстадийный поиск: BM25 + персонализация + фасеты
+  repository.py          # SQLite-backed репозиторий (FTS5, vocabulary, facets)
+  data_loader.py         # Загрузка CSV → SQLite (542K СТЕ, 2M контрактов)
+  text_processing.py     # Токенизация, морфология, коррекция опечаток
+  synonyms.py            # Расширение синонимами (136 групп)
+  semantic.py            # Stub (FTS5 backend)
+  reranker.py            # Heuristic reranker
+  evaluation.py          # 8 evaluation cases, 5 метрик
+  evaluation_compare.py  # Сравнение режимов поиска
+  demo_scenarios.py      # 5 demo-сценариев для жюри
+  settings.py            # Конфигурация
 data/
-  catalog.json           - 170 товаров
-  synonyms.json          - 136 групп синонимов
-  sample_events.json     - 543 события
-models/
-  ltr_model.txt          - Обученная LTR модель
-tests/
-  test_search.py         - 34 pytest теста
-scripts/
-  train_ltr.py           - Обучение LTR модели
-  generate_catalog.py    - Генерация каталога
-  generate_synonyms.py   - Генерация синонимов
-  generate_events.py     - Генерация событий
-  smoke_test.py          - Быстрая проверка
-docs/
-  bpmn.md
-  demo-script.md
-  presentation-outline.md
+  СТЕ_*.csv             # 542K товаров (ID, title, category, attrs)
+  Контракты_*.csv       # 2M контрактов (11 полей)
+  synonyms.json          # 136 групп синонимов
 ```
 
 ## Быстрый старт
 
 ```bash
-# Активация виртуального окружения
-venv\Scripts\activate.bat    # Windows
+# Клонирование
+git clone https://github.com/gpudreamthaw/smart-search-hackathon.git
+cd smart-search-hackathon
+
+# Виртуальное окружение
+python -m venv venv
+venv\Scripts\activate        # Windows
 source venv/bin/activate     # Linux/Mac
 
 # Установка зависимостей
 pip install -r requirements.txt
 
-# Запуск API-сервера
+# Запуск API-сервера (порт 8000)
 uvicorn main:app --reload
 
-# Запуск Web UI (в отдельном терминале)
+# Запуск Web UI (порт 8501, в отдельном терминале)
 streamlit run streamlit_app.py
-
-# Запуск тестов
-pytest tests/ -v
-
-# Обучение LTR модели
-python scripts/train_ltr.py
 ```
 
-- API Swagger: http://127.0.0.1:8000/docs
-- Streamlit UI: http://localhost:8501
+При первом запуске система загружает CSV-файлы из `data/` в SQLite (`smart_search.db`).
 
-## Основные эндпоинты
+## API Endpoints
 
-- GET /health
-- GET /catalog/items
-- GET /search?q=ноутбук&user_id=user-1&mode=hybrid
-- GET /search/synonyms
-- GET /search/semantic/status
-- GET /search/reranker/status
-- POST /admin/import/catalog
-- POST /admin/import/events
-- POST /events
-- GET /users/{user_id}/profile
-- GET /users/{user_id}/events
-- GET /metrics/evaluate
-- GET /metrics/compare
+| Метод | Путь | Описание |
+|---|---|---|
+| GET | `/health` | Статус системы |
+| GET | `/search?q=шприц&user_id=7714338609` | Поиск с персонализацией |
+| GET | `/search?q=фильтр&category=ФИЛЬТРЫ` | Поиск с фасетным фильтром |
+| GET | `/search/suggest?q=ноут` | Подсказки (категории) |
+| GET | `/catalog/items` | Каталог товаров |
+| GET | `/catalog/categories?q=бумага` | Список категорий |
+| GET | `/users/{user_id}/profile` | Профиль организации |
+| GET | `/metrics/evaluate` | Метрики качества |
+| GET | `/metrics/compare` | Сравнение режимов |
 
-## Режимы поиска
+## Demo-сценарии
 
-- keyword — только лексический поиск
-- semantic — только semantic retrieval
-- hybrid — объединение keyword и semantic слоя
+1. **Шприц: Аптека vs Автохозяйство** — яркая персонализация (+146% буст)
+2. **Фильтр: Автохозяйство vs Аптека** — разные фильтры в зависимости от профиля
+3. **Ноутбук Lenovo** — точность BM25 на бренд-запросе
+4. **Бумага офисная** — широкий запрос + персонализация
+5. **Препарат** — медицинская персонализация
 
-## Переменные окружения
+## Авторы
 
-- STORAGE_BACKEND=memory|sql
-- DATABASE_URL=sqlite:///path/to/db
-- SEED_DEMO_DATA=true|false
-- SEMANTIC_BACKEND=auto|tfidf
-- SEMANTIC_MODEL_NAME=intfloat/multilingual-e5-large
-- RERANKER_BACKEND=heuristic|auto|cross-encoder
-- RERANKER_MODEL_NAME=BAAI/bge-reranker-v2-m3
-- EMBEDDING_CACHE_DIR=.cache
-- LTR_MODEL_PATH=models/ltr_model.txt
-
-## Масштабирование
-
-- PostgreSQL через STORAGE_BACKEND=sql
-- Redis для кеша горячих запросов
-- Elasticsearch/OpenSearch для >100к товаров
-- GPU inference (sentence-transformers автоматически используют CUDA)
-- Kubernetes: stateless FastAPI горизонтально масштабируется
+Команда "GpuDreamThaw" — хакатон zakupki.mos.ru

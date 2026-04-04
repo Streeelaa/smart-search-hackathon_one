@@ -1,227 +1,252 @@
-from app.ltr import extract_features, ltr_ranker
+"""Two-stage search: FTS5 BM25 retrieval + personalization reranking."""
+from __future__ import annotations
+
+import logging
+import re
+import time
+from collections import Counter
+from functools import lru_cache
+
 from app.repository import repository
-from app.reranker import reranker
-from app.schemas import Product, SearchMode, SearchResponse, SearchResult, UserProfile
-from app.semantic import semantic_engine
+from app.schemas import CategoryFacet, Product, SearchMode, SearchResponse, SearchResult, UserProfile
 from app.synonyms import expand_terms_with_synonyms
-from app.text_processing import correct_tokens, normalize_query, normalize_text, normalize_tokens
+from app.text_processing import correct_tokens, normalize_query, normalize_text, tokenize
+
+logger = logging.getLogger(__name__)
+
+PERSONALIZATION_WEIGHT = 5.0
+
+# ---- Vocabulary (lazy-loaded once) ----
+_vocabulary: set[str] | None = None
 
 
-def build_vocabulary(products: list[Product]) -> set[str]:
-    vocabulary: set[str] = set()
-    for product in products:
-        chunks = [
-            product.title,
-            product.category,
-            product.description,
-            *product.tags,
-            *product.aliases,
-            *product.attributes.values(),
-        ]
-        for chunk in chunks:
-            vocabulary.update(normalize_query(chunk))
-    return vocabulary
+def _get_vocabulary() -> set[str]:
+    global _vocabulary
+    if _vocabulary is None:
+        logger.info("Building vocabulary for typo correction (first time)...")
+        _vocabulary = repository.build_vocabulary()
+        logger.info("Vocabulary ready: %d terms", len(_vocabulary))
+    return _vocabulary
 
 
-def expand_terms(tokens: list[str]) -> list[str]:
-    return expand_terms_with_synonyms(tokens)
+def warm_up() -> None:
+    """Pre-build vocabulary on startup so first search is fast."""
+    _get_vocabulary()
 
 
-def product_fields(product: Product) -> dict[str, list[str]]:
-    return {
-        "title": normalize_query(product.title),
-        "category": normalize_query(product.category),
-        "description": normalize_query(product.description),
-        "tags": normalize_tokens(product.tags),
-        "aliases": normalize_tokens(product.aliases),
-        "attributes": normalize_tokens(list(product.attributes.values())),
-    }
+@lru_cache(maxsize=512)
+def _cached_build_fts_query_terms(query: str) -> tuple[str, ...]:
+    """Cached version — returns tuple for hashability."""
+    return tuple(build_fts_query_terms(query))
 
 
-def lexical_score(product: Product, terms: list[str]) -> tuple[float, list[str]]:
-    fields = product_fields(product)
-    text = set(
-        fields["title"]
-        + fields["category"]
-        + fields["description"]
-        + fields["tags"]
-        + fields["aliases"]
-        + fields["attributes"]
-    )
-    reasons: list[str] = []
-    score = 0.0
-
-    for term in terms:
-        if term in fields["title"]:
-            score += 3.0
-            reasons.append(f"Совпадение в названии: {term}")
-        elif term in fields["aliases"]:
-            score += 2.7
-            reasons.append(f"Совпадение по синониму: {term}")
-        elif term in fields["category"]:
-            score += 2.5
-            reasons.append(f"Совпадение по категории: {term}")
-        elif term in fields["tags"]:
-            score += 2.0
-            reasons.append(f"Совпадение по тегу: {term}")
-        elif term in fields["attributes"]:
-            score += 1.7
-            reasons.append(f"Совпадение по атрибуту: {term}")
-        elif term in text:
-            score += 1.0
-            reasons.append(f"Совпадение в описании: {term}")
-
-    if terms:
-        title_phrase = normalize_text(product.title)
-        query_phrase = " ".join(terms)
-        if query_phrase and query_phrase in title_phrase:
-            score += 2.0
-            reasons.append("Совпадение фразы в названии")
-
-    return score, reasons
+# ---- Search result cache ----
+_search_cache: dict[tuple, SearchResponse] = {}
+_SEARCH_CACHE_MAX = 256
 
 
-def personalization_score(product: Product, profile: UserProfile | None) -> tuple[float, list[str]]:
+def build_fts_query_terms(query: str) -> list[str]:
+    """Build diverse search terms for FTS5 from user query.
+
+    Combines raw tokens (with inflections), lemmatised forms, and synonym
+    expansions for maximum recall.
+    """
+    raw_tokens = tokenize(query)
+    normalized = normalize_query(query)
+    try:
+        expanded = expand_terms_with_synonyms(normalized)
+    except Exception:
+        expanded = list(normalized)
+
+    all_terms: list[str] = []
+    seen: set[str] = set()
+    for term in raw_tokens + normalized + expanded:
+        if term and term not in seen:
+            seen.add(term)
+            all_terms.append(term)
+    return all_terms
+
+
+def personalization_multiplier(
+    product: Product, profile: UserProfile | None
+) -> tuple[float, list[str]]:
+    """Compute multiplicative personalization boost from contract history.
+
+    Returns (multiplier, reasons) where multiplier >= 1.0.
+    A product in the user's top category gets up to 2.5x boost.
+    """
     if profile is None or profile.total_events == 0:
-        return 0.0, []
+        return 1.0, []
 
-    score = 0.0
     reasons: list[str] = []
 
-    category_score = profile.category_affinity.get(product.category, 0.0)
-    if category_score:
-        score += category_score
-        reasons.append(f"Категория релевантна истории пользователя: {product.category}")
+    cat_score = profile.category_affinity.get(product.category, 0.0)
+    if cat_score > 0:
+        multiplier = 1.0 + cat_score * PERSONALIZATION_WEIGHT
+        pct = f"{cat_score:.0%}"
+        reasons.append(f"Категория в {pct} закупок пользователя (+{multiplier - 1:.0%} буст)")
+        return multiplier, reasons
 
-    shared_tags = [tag for tag in product.tags if tag in profile.tag_affinity]
-    if shared_tags:
-        tag_score = sum(profile.tag_affinity[tag] for tag in shared_tags) * 0.25
-        score += tag_score
-        reasons.append(f"Теги совпадают с интересами пользователя: {', '.join(shared_tags[:3])}")
-
-    if profile.recent_queries:
-        recent_terms = set(normalize_query(" ".join(profile.recent_queries[-3:])))
-        product_terms = set(product_fields(product)["title"] + product_fields(product)["tags"])
-        overlap = recent_terms & product_terms
-        if overlap:
-            score += min(1.5, len(overlap) * 0.5)
-            reasons.append(f"Похоже на недавние запросы пользователя: {', '.join(sorted(overlap)[:3])}")
-
-    if profile.average_price is not None:
-        distance = abs(product.price - profile.average_price)
-        price_score = max(0.0, 2.0 - distance / max(profile.average_price, 1.0))
-        if price_score > 0:
-            score += price_score
-            reasons.append("Цена близка к историческим закупкам")
-
-    return score, reasons
+    return 1.0, []
 
 
-def semantic_scores_for_query(query: str, limit: int) -> dict[int, float]:
-    return dict(semantic_engine.search(query=query, limit=limit))
+def _highlight_title(title: str, query_tokens: list[str]) -> str:
+    """Add <mark> tags around query tokens in title for highlighting."""
+    if not query_tokens:
+        return title
+    # Build pattern matching any token (word boundary for Cyrillic)
+    escaped = [re.escape(t) for t in query_tokens if len(t) >= 2]
+    if not escaped:
+        return title
+    pattern = re.compile(r"(" + "|".join(escaped) + r")", re.IGNORECASE)
+    return pattern.sub(r"<mark>\1</mark>", title)
 
 
-def apply_result_cutoff(reranked: list[tuple[Product, float, list[str]]], mode: SearchMode) -> list[tuple[Product, float, list[str]]]:
-    if not reranked:
-        return []
-
-    top_score = reranked[0][1]
-    if mode == "keyword":
-        threshold = max(1.0, top_score * 0.15)
-    elif mode == "semantic":
-        threshold = max(0.9, top_score * 0.3)
-    else:
-        threshold = max(1.2, top_score * 0.25)
-
-    filtered = [item for item in reranked if item[1] >= threshold]
-    return filtered
-
-
-def search_products(query: str, limit: int = 10, user_id: str | None = None, mode: SearchMode = "hybrid") -> SearchResponse:
-    tokens = normalize_query(query)
-    vocabulary = build_vocabulary(repository.products)
-    corrected_tokens, _ = correct_tokens(tokens, vocabulary)
-    corrected_query = " ".join(corrected_tokens)
-    expanded_terms = expand_terms(corrected_tokens)
-    semantic_query = corrected_query or query
-    semantic_scores = semantic_scores_for_query(semantic_query, limit=limit) if mode in {"semantic", "hybrid"} else {}
-
-    profile = repository.get_user_profile(user_id) if user_id else None
-    lexical_candidates: dict[int, tuple[float, list[str]]] = {}
-    if mode in {"keyword", "hybrid"}:
-        for product in repository.products:
-            base_score, base_reasons = lexical_score(product, expanded_terms)
-            if base_score > 0:
-                lexical_candidates[product.id] = (base_score, base_reasons)
-
-    candidate_ids = set(lexical_candidates) | set(semantic_scores)
-    candidates_for_rerank: list[tuple[Product, float, list[str]]] = []
-    for product in repository.products:
-        if product.id not in candidate_ids:
-            continue
-
-        base_score, base_reasons = lexical_candidates.get(product.id, (0.0, []))
-        dense_score = semantic_scores.get(product.id, 0.0)
-        if mode == "keyword" and base_score <= 0:
-            continue
-        if mode == "semantic" and dense_score <= 0:
-            continue
-        if mode == "hybrid" and base_score <= 0 and dense_score <= 0:
-            continue
-
-        personal_score, personal_reasons = personalization_score(product, profile)
-        semantic_component = 0.0
-        semantic_reasons: list[str] = []
-        if dense_score > 0:
-            semantic_component = dense_score * 4.0
-            semantic_reasons.append(f"Семантическая близость запроса и товара: {dense_score:.3f}")
-
-        if mode == "keyword":
-            final_score = base_score + personal_score
-        elif mode == "semantic":
-            final_score = semantic_component + personal_score
-        else:
-            final_score = base_score + semantic_component + personal_score
-
-        deduped_reasons = list(dict.fromkeys(base_reasons + semantic_reasons + personal_reasons))
-        candidates_for_rerank.append((product, final_score, deduped_reasons[:6]))
-
-    reranked = reranker.rerank(query=semantic_query, candidates=candidates_for_rerank, top_k=limit)
-
-    # LightGBM learned-to-rank boost (if model is available)
-    if ltr_ranker.ready and reranked:
-        import numpy as np
-        query_tokens = normalize_query(corrected_query or query)
-        features_list = []
-        for product, score, reasons in reranked:
-            lex_sc = lexical_candidates.get(product.id, (0.0, []))[0]
-            sem_sc = semantic_scores.get(product.id, 0.0)
-            pers_sc, _ = personalization_score(product, profile)
-            feat = extract_features(product, query_tokens, lex_sc, sem_sc, pers_sc, profile)
-            features_list.append(feat)
-        ltr_scores = ltr_ranker.predict(np.array(features_list, dtype=np.float32))
-        reranked_with_ltr = []
-        for (product, base_score, reasons), ltr_sc in zip(reranked, ltr_scores, strict=True):
-            boosted = base_score + float(ltr_sc) * 2.0
-            updated_reasons = reasons + [f"LTR boost: {float(ltr_sc):.2f}"]
-            reranked_with_ltr.append((product, boosted, updated_reasons))
-        reranked_with_ltr.sort(key=lambda item: item[1], reverse=True)
-        reranked = reranked_with_ltr
-
-    reranked = apply_result_cutoff(reranked, mode=mode)
-    results: list[SearchResult] = [
-        SearchResult(product=product, score=round(score, 3), reasons=reasons[:5])
-        for product, score, reasons in reranked
+def _build_facets(scored: list[tuple[Product, float, list[str]]], limit: int = 10) -> list[CategoryFacet]:
+    """Build category facets from scored results."""
+    counter: Counter[str] = Counter()
+    for product, _, _ in scored:
+        counter[product.category] += 1
+    return [
+        CategoryFacet(category=cat, count=cnt)
+        for cat, cnt in counter.most_common(limit)
     ]
 
-    return SearchResponse(
+
+def search_products(
+    query: str,
+    limit: int = 10,
+    user_id: str | None = None,
+    mode: SearchMode = "hybrid",
+    category_filter: str | None = None,
+) -> SearchResponse:
+    """Main search entry point — FTS5 BM25 + typo correction + personalization."""
+    # Check cache first
+    cache_key = (query, limit, user_id, mode, category_filter)
+    if cache_key in _search_cache:
+        cached = _search_cache[cache_key]
+        # Return cached result with 0ms time to show it was cached
+        return cached
+
+    t0 = time.perf_counter()
+
+    # 1. Normalize
+    raw_tokens = tokenize(query)
+    normalized = normalize_query(query)
+
+    # 2. Typo correction
+    typo_corrected = False
+    corrected_tokens = list(normalized)
+    try:
+        vocab = _get_vocabulary()
+        corrected_tokens, changed = correct_tokens(list(normalized), vocab)
+        if changed:
+            typo_corrected = True
+    except Exception:
+        pass
+    corrected_query = " ".join(corrected_tokens) if corrected_tokens else query
+
+    # 3. Expand with synonyms
+    try:
+        expanded_terms = expand_terms_with_synonyms(corrected_tokens)
+    except Exception:
+        expanded_terms = list(corrected_tokens)
+
+    # 4. FTS5 BM25 retrieval (use both original and corrected tokens)
+    fts_terms = list(_cached_build_fts_query_terms(query))
+    if typo_corrected:
+        fts_terms_corrected = list(_cached_build_fts_query_terms(corrected_query))
+        fts_terms = list(dict.fromkeys(fts_terms + fts_terms_corrected))
+    candidate_limit = max(limit * 10, 200)
+    candidates = repository.search_fts5(fts_terms, limit=candidate_limit)
+
+    # 5. User profile
+    profile = repository.get_user_profile(user_id) if user_id else None
+
+    # 6. Score candidates
+    scored: list[tuple[Product, float, list[str]]] = []
+    query_lower = query.lower().strip()
+    highlight_tokens = raw_tokens + corrected_tokens
+
+    for product, bm25_score in candidates:
+        # Category filter
+        if category_filter and product.category != category_filter:
+            continue
+
+        reasons: list[str] = []
+        total_score = bm25_score
+
+        # Title match bonuses
+        title_lower = product.title.lower()
+        if query_lower and query_lower in title_lower:
+            total_score += 5.0
+            reasons.append("Точное совпадение фразы в названии")
+        else:
+            hit_count = sum(1 for t in raw_tokens if t in title_lower)
+            if hit_count > 0:
+                total_score += hit_count * 0.5
+                if hit_count == len(raw_tokens) and len(raw_tokens) > 1:
+                    reasons.append("Все слова запроса в названии")
+
+        # Category match
+        cat_lower = product.category.lower()
+        for t in raw_tokens:
+            if t in cat_lower:
+                total_score += 1.0
+                reasons.append(f"Категория: {product.category}")
+                break
+
+        # BM25 reason
+        reasons.insert(0, f"BM25: {bm25_score:.1f}")
+
+        # Personalization: multiplicative boost (only in hybrid mode)
+        if mode == "hybrid":
+            mult, pers_reasons = personalization_multiplier(product, profile)
+            if mult > 1.0:
+                total_score *= mult
+                reasons.extend(pers_reasons)
+
+        scored.append((product, total_score, reasons))
+
+    # 7. Sort by total score
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    # 8. Build facets from ALL scored results (before slicing)
+    facets = _build_facets(scored)
+
+    # 9. Timing
+    search_time_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+    # 10. Build response
+    results = [
+        SearchResult(
+            product=product,
+            score=round(score, 3),
+            reasons=reasons[:5],
+            highlight_title=_highlight_title(product.title, highlight_tokens),
+        )
+        for product, score, reasons in scored[:limit]
+    ]
+
+    response = SearchResponse(
         query=query,
         corrected_query=corrected_query,
-        expanded_terms=expanded_terms,
+        typo_corrected=typo_corrected,
+        expanded_terms=expanded_terms[:10],
         total=len(results),
         personalized=bool(profile and profile.total_events > 0),
         mode=mode,
-        semantic_backend=semantic_engine.status().backend if mode in {"semantic", "hybrid"} else None,
-        reranker_backend=reranker.status().backend,
+        semantic_backend="fts5-bm25",
+        reranker_backend="personalization" if profile and profile.total_events > 0 else "bm25",
+        search_time_ms=search_time_ms,
+        facets=facets,
         items=results,
     )
+
+    # Store in cache (evict oldest if full)
+    if len(_search_cache) >= _SEARCH_CACHE_MAX:
+        oldest_key = next(iter(_search_cache))
+        del _search_cache[oldest_key]
+    _search_cache[cache_key] = response
+
+    return response

@@ -4,37 +4,48 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-EventType = Literal["search", "click", "favorite", "purchase"]
+EventType = Literal["search", "click", "favorite", "purchase", "bounce"]
 SearchMode = Literal["keyword", "semantic", "hybrid"]
 
 
 class Product(BaseModel):
-    id: int
-    sku: str
-    title: str
-    category: str
-    description: str
-    price: float = Field(ge=0)
+    id: int  # ID СТЕ
+    title: str  # Наименование
+    category: str  # Категория
+    attributes: dict[str, str] = Field(default_factory=dict)  # Атрибуты (key:value)
+    # Legacy fields kept for backward compat but optional
+    sku: str = ""
+    description: str = ""
+    price: float = Field(default=0, ge=0)
     tags: list[str] = Field(default_factory=list)
     aliases: list[str] = Field(default_factory=list)
-    attributes: dict[str, str] = Field(default_factory=dict)
+
+
+class CategoryFacet(BaseModel):
+    category: str
+    count: int
+    icon: str = "📦"
 
 
 class SearchResult(BaseModel):
     product: Product
     score: float
     reasons: list[str] = Field(default_factory=list)
+    highlight_title: str = ""  # Title with <mark> tags around matched terms
 
 
 class SearchResponse(BaseModel):
     query: str
     corrected_query: str
+    typo_corrected: bool = False
     expanded_terms: list[str]
     total: int
     personalized: bool
     mode: SearchMode
     semantic_backend: str | None = None
     reranker_backend: str | None = None
+    search_time_ms: float = 0.0
+    facets: list[CategoryFacet] = Field(default_factory=list)
     items: list[SearchResult]
 
 

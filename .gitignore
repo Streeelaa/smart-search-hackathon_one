@@ -8,4 +8,23 @@ smart_search.db
 *.sqlite3
 .pytest_cache/
 .cache/
+
+# Large data files
+data/*.csv
+data/*.7z
+
+# Temporary scripts
+_rewrite_core.py
+analyze_data.py
+extract_data.py
+find_cat_users.py
+find_diverse_queries.py
+find_users.py
+inspect_data.py
+inspect_users.py
+test_final.py
+test_integration.py
+test_speed.py
+test_upgrade.py
+test_vocab.py
 .mypy_cache/

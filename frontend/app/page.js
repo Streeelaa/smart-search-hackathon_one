@@ -1,5 +1,5 @@
-import { HomePageV3 } from "../components/home-page-v3";
+import { HomePageV4 } from "../components/home-page-v4";
 
 export default function Page() {
-  return <HomePageV3 />;
+  return <HomePageV4 />;
 }

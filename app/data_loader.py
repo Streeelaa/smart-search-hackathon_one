@@ -92,6 +92,26 @@ CREATE TABLE IF NOT EXISTS events (
     timestamp   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id);
+
+CREATE TABLE IF NOT EXISTS user_accounts (
+    user_id              TEXT PRIMARY KEY,
+    organization_name    TEXT NOT NULL DEFAULT '',
+    contact_name         TEXT NOT NULL DEFAULT '',
+    email                TEXT NOT NULL DEFAULT '',
+    phone                TEXT NOT NULL DEFAULT '',
+    job_title            TEXT NOT NULL DEFAULT '',
+    role                 TEXT NOT NULL DEFAULT 'customer',
+    created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS user_favorites (
+    user_id      TEXT NOT NULL,
+    item_id      INTEGER NOT NULL,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_favorites_user ON user_favorites(user_id);
 """
 
 

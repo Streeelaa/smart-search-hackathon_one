@@ -5,7 +5,8 @@ import { createEvent, fetchJson } from "../lib/api";
 import { addToCart } from "../lib/cart";
 import { formatCurrency, formatNumber, normalizeAttributes } from "../lib/format";
 import { getProductImage } from "../lib/product-images";
-import { PortalShell } from "./portal-shell";
+import { usePortalSession } from "../lib/session";
+import { PortalShellV2 } from "./portal-shell-v2";
 
 const PAGE_SIZE = 12;
 
@@ -27,8 +28,8 @@ function CatalogListCard({ item, isActive, onAddToCart, onFavorite, onOpen }) {
           </div>
 
           <ul className="plain-list">
-            {normalizeAttributes(item.product.attributes).slice(0, 3).map((attribute) => (
-              <li key={attribute}>{attribute}</li>
+            {normalizeAttributes(item.product.attributes).slice(0, 3).map((attribute, index) => (
+              <li key={`${attribute}-${index}`}>{attribute}</li>
             ))}
           </ul>
         </div>
@@ -50,6 +51,7 @@ function CatalogListCard({ item, isActive, onAddToCart, onFavorite, onOpen }) {
 }
 
 export function CatalogPageV3() {
+  const session = usePortalSession();
   const [categories, setCategories] = useState([]);
   const [items, setItems] = useState([]);
   const [activeCategory, setActiveCategory] = useState("");
@@ -135,8 +137,13 @@ export function CatalogPageV3() {
   const canGoNext = useMemo(() => items.length === PAGE_SIZE, [items.length]);
 
   function favoriteItem(item) {
+    if (session?.user_id) {
+      void fetchJson(`/users/${session.user_id}/favorites/${item.product.id}`, {
+        init: { method: "POST" },
+      }).catch(() => null);
+    }
     void createEvent({
-      user_id: "portal-web",
+      user_id: session?.user_id || "portal-web",
       event_type: "favorite",
       item_id: item.product.id,
       metadata: { source: "catalog" },
@@ -144,7 +151,7 @@ export function CatalogPageV3() {
   }
 
   return (
-    <PortalShell>
+    <PortalShellV2>
       <section className="catalog-v2-layout">
         <aside className="catalog-sidebar">
           <div className="surface-block">
@@ -238,7 +245,15 @@ export function CatalogPageV3() {
                   })
                 }
                 onFavorite={() => favoriteItem(item)}
-                onOpen={() => setSelectedItem(item)}
+                onOpen={() => {
+                  setSelectedItem(item);
+                  void createEvent({
+                    user_id: session?.user_id || "portal-web",
+                    event_type: "click",
+                    item_id: item.product.id,
+                    metadata: { source: "catalog" },
+                  }).catch(() => null);
+                }}
               />
             ))}
           </div>
@@ -278,8 +293,8 @@ export function CatalogPageV3() {
                 <div className="side-section">
                   <h3>Атрибуты</h3>
                   <ul className="plain-list">
-                    {normalizeAttributes(selectedItem.product.attributes).map((attribute) => (
-                      <li key={attribute}>{attribute}</li>
+                    {normalizeAttributes(selectedItem.product.attributes).map((attribute, index) => (
+                      <li key={`${attribute}-${index}`}>{attribute}</li>
                     ))}
                   </ul>
                 </div>
@@ -292,6 +307,6 @@ export function CatalogPageV3() {
       </section>
 
       {loading ? <div className="feedback-box">Загружаем каталог...</div> : null}
-    </PortalShell>
+    </PortalShellV2>
   );
 }

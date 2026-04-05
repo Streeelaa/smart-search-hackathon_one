@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchJson } from "../lib/api";
 import { formatCurrency, formatNumber, formatPercent } from "../lib/format";
-import { PortalShell } from "./portal-shell";
+import { PortalShellV2 } from "./portal-shell-v2";
 
 export function CustomerPage({ userId }) {
   const [summary, setSummary] = useState(null);
@@ -76,7 +76,7 @@ export function CustomerPage({ userId }) {
   }
 
   return (
-    <PortalShell>
+    <PortalShellV2>
       <section className="hero-grid">
         <div className="surface elevated hero-panel">
           <p className="eyebrow">Профиль заказчика</p>
@@ -194,6 +194,6 @@ export function CustomerPage({ userId }) {
           <p className="muted-copy">Введите запрос, чтобы увидеть, как срабатывает персонализация для этого профиля.</p>
         )}
       </section>
-    </PortalShell>
+    </PortalShellV2>
   );
 }

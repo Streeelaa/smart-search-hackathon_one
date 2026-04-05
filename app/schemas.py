@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 EventType = Literal["search", "click", "favorite", "purchase", "bounce"]
 SearchMode = Literal["keyword", "semantic", "hybrid"]
+UserRole = Literal["customer", "manager", "admin"]
 
 
 class Product(BaseModel):
@@ -118,6 +119,57 @@ class SearchSuggestion(BaseModel):
     count: int | None = None
     category: str | None = None
     id: int | None = None
+
+
+class UserLoginRequest(BaseModel):
+    user_id: str = Field(min_length=1)
+    role: UserRole = "customer"
+
+
+class UserAccount(BaseModel):
+    user_id: str
+    organization_name: str
+    contact_name: str = ""
+    user_region: str | None = None
+    email: str = ""
+    phone: str = ""
+    job_title: str = ""
+    role: UserRole = "customer"
+    top_category: str | None = None
+    total_contracts: int = 0
+    avg_price: float | None = None
+
+
+class UserAccountUpdate(BaseModel):
+    contact_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    job_title: str | None = None
+    role: UserRole | None = None
+
+
+class UserProductRecord(BaseModel):
+    product: Product
+    contracts_count: int = 0
+    average_price: float | None = None
+    timestamp: datetime | None = None
+
+
+class SearchSessionSummary(BaseModel):
+    query: str
+    timestamp: datetime
+    results_context: str | None = None
+    category: str | None = None
+
+
+class UserDashboard(BaseModel):
+    account: UserAccount
+    profile: UserProfile
+    preferred_categories: list[CategorySummary] = Field(default_factory=list)
+    popular_products: list[UserProductRecord] = Field(default_factory=list)
+    viewed_products: list[UserProductRecord] = Field(default_factory=list)
+    favorite_products: list[UserProductRecord] = Field(default_factory=list)
+    search_sessions: list[SearchSessionSummary] = Field(default_factory=list)
 
 
 class HealthResponse(BaseModel):

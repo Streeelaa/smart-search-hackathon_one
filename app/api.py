@@ -6,7 +6,7 @@ from app.evaluation_v2 import evaluate_search
 from app.ingestion import import_catalog, import_events
 from app.repository import repository
 from app.reranker import reranker
-from app.schemas import CatalogItem, CatalogStats, CategorySummary, EvaluationComparisonResponse, EvaluationSummary, Event, EventCreate, HealthResponse, ImportRequest, ImportResult, PortalOverview, Product, ProductInsights, RerankerStatusResponse, SearchMode, SearchResponse, SearchSuggestion, SemanticStatusResponse, StorageStatusResponse, UserProfile, UserSummary
+from app.schemas import CatalogItem, CatalogStats, CategorySummary, EvaluationComparisonResponse, EvaluationSummary, Event, EventCreate, HealthResponse, ImportRequest, ImportResult, PortalOverview, Product, ProductInsights, RerankerStatusResponse, SearchMode, SearchResponse, SearchSessionSummary, SearchSuggestion, SemanticStatusResponse, StorageStatusResponse, UserAccount, UserAccountUpdate, UserDashboard, UserLoginRequest, UserProductRecord, UserProfile, UserSummary
 from app.semantic import semantic_engine
 from app.settings import settings
 from app.search import search_products, warm_up
@@ -30,15 +30,15 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_warm_up():
-    """Pre-build vocabulary for typo correction and semantic index on startup."""
+    """Warm the typo vocabulary before first search; keep semantic init in background."""
     import asyncio
+    await asyncio.to_thread(warm_up)
     loop = asyncio.get_event_loop()
-    loop.run_in_executor(None, _startup_init)
+    loop.run_in_executor(None, _startup_semantic_init)
 
 
-def _startup_init():
-    """Initialize vocabulary + semantic index in background thread."""
-    warm_up()
+def _startup_semantic_init():
+    """Initialize semantic index in background thread."""
     try:
         semantic_engine.build_index()
     except Exception:
@@ -270,6 +270,14 @@ def create_event(payload: EventCreate) -> Event:
     return repository.add_event(payload)
 
 
+@app.post("/auth/login", response_model=UserAccount)
+def auth_login(payload: UserLoginRequest) -> UserAccount:
+    try:
+        return repository.login_user(payload.user_id, role=payload.role)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @app.get("/users", response_model=list[UserSummary])
 def list_users(
     q: str | None = Query(default=None, description="Filter organizations by id, name or region."),
@@ -284,9 +292,93 @@ def get_user_profile(user_id: str) -> UserProfile:
     return repository.get_user_profile(user_id)
 
 
+@app.get("/users/{user_id}/account", response_model=UserAccount)
+def get_user_account(user_id: str) -> UserAccount:
+    try:
+        account = repository.get_user_account(user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if account is None:
+        raise HTTPException(status_code=404, detail="User account not found")
+    return account
+
+
+@app.put("/users/{user_id}/account", response_model=UserAccount)
+def update_user_account(user_id: str, payload: UserAccountUpdate) -> UserAccount:
+    try:
+        return repository.update_user_account(user_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @app.get("/users/{user_id}/events", response_model=list[Event])
 def get_user_events(user_id: str) -> list[Event]:
     return repository.list_user_events(user_id)
+
+
+@app.get("/users/{user_id}/favorites", response_model=list[UserProductRecord])
+def get_user_favorites(
+    user_id: str,
+    limit: int = Query(default=20, ge=1, le=100),
+) -> list[UserProductRecord]:
+    try:
+        return repository.list_user_favorites(user_id, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/users/{user_id}/favorites/{item_id}", response_model=UserProductRecord)
+def add_user_favorite(user_id: str, item_id: int) -> UserProductRecord:
+    if repository.get_product(item_id) is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+    try:
+        return repository.add_favorite(user_id, item_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/users/{user_id}/favorites/{item_id}")
+def remove_user_favorite(user_id: str, item_id: int) -> dict[str, bool]:
+    repository.remove_favorite(user_id, item_id)
+    return {"ok": True}
+
+
+@app.get("/users/{user_id}/history", response_model=list[UserProductRecord])
+def get_user_history(
+    user_id: str,
+    limit: int = Query(default=20, ge=1, le=100),
+) -> list[UserProductRecord]:
+    return repository.list_view_history(user_id, limit=limit)
+
+
+@app.get("/users/{user_id}/search-sessions", response_model=list[SearchSessionSummary])
+def get_user_search_sessions(
+    user_id: str,
+    limit: int = Query(default=20, ge=1, le=100),
+) -> list[SearchSessionSummary]:
+    return repository.list_search_sessions(user_id, limit=limit)
+
+
+@app.get("/users/{user_id}/dashboard", response_model=UserDashboard)
+def get_user_dashboard(
+    user_id: str,
+    favorites_limit: int = Query(default=8, ge=1, le=24),
+    history_limit: int = Query(default=8, ge=1, le=24),
+    sessions_limit: int = Query(default=8, ge=1, le=24),
+    products_limit: int = Query(default=8, ge=1, le=24),
+    categories_limit: int = Query(default=6, ge=1, le=12),
+) -> UserDashboard:
+    try:
+        return repository.get_user_dashboard(
+            user_id,
+            favorites_limit=favorites_limit,
+            history_limit=history_limit,
+            sessions_limit=sessions_limit,
+            products_limit=products_limit,
+            categories_limit=categories_limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/metrics/evaluate", response_model=EvaluationSummary)

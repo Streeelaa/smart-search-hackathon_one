@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 
 from app.data_loader import get_db_connection, load_real_data
-from app.schemas import Event, EventCreate, Product, UserProfile
+from app.schemas import CategorySummary, Event, EventCreate, Product, SearchSessionSummary, UserAccount, UserAccountUpdate, UserDashboard, UserProductRecord, UserProfile, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +199,259 @@ class RealDataRepository:
                 "top_category": top_cat,
             })
         return result
+
+    # ---- Account layer ----
+
+    def login_user(self, user_id: str, role: UserRole = "customer") -> UserAccount:
+        self._ensure_account(user_id, role=role)
+        account = self.get_user_account(user_id)
+        if account is None:
+            raise ValueError(f"Unknown user: {user_id}")
+        if account.role != role:
+            self._conn.execute(
+                "UPDATE user_accounts SET role = ?, updated_at = datetime('now') WHERE user_id = ?",
+                (role, user_id),
+            )
+            self._conn.commit()
+            account = self.get_user_account(user_id)
+        return account
+
+    def get_user_account(self, user_id: str) -> UserAccount | None:
+        self._ensure_account(user_id)
+        row = self._conn.execute(
+            """
+            SELECT
+                a.user_id,
+                a.organization_name,
+                a.contact_name,
+                a.email,
+                a.phone,
+                a.job_title,
+                a.role,
+                p.user_region,
+                p.total_contracts,
+                p.avg_price,
+                p.category_affinity
+            FROM user_accounts a
+            LEFT JOIN user_profiles_cache p ON p.user_id = a.user_id
+            WHERE a.user_id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+        if not row:
+            return None
+        category_affinity = self._loads_json(row["category_affinity"], {})
+        top_category = next(iter(category_affinity), None) if category_affinity else None
+        return UserAccount(
+            user_id=row["user_id"],
+            organization_name=row["organization_name"] or "",
+            contact_name=row["contact_name"] or "",
+            user_region=row["user_region"] or None,
+            email=row["email"] or "",
+            phone=row["phone"] or "",
+            job_title=row["job_title"] or "",
+            role=row["role"] or "customer",
+            top_category=top_category,
+            total_contracts=row["total_contracts"] or 0,
+            avg_price=row["avg_price"],
+        )
+
+    def update_user_account(self, user_id: str, payload: UserAccountUpdate) -> UserAccount:
+        current = self.login_user(user_id)
+        updates = payload.model_dump(exclude_none=True)
+        if not updates:
+            return current
+
+        allowed_columns = {
+            "contact_name": "contact_name",
+            "email": "email",
+            "phone": "phone",
+            "job_title": "job_title",
+            "role": "role",
+        }
+        assignments: list[str] = []
+        params: list[object] = []
+        for key, value in updates.items():
+            column = allowed_columns.get(key)
+            if not column:
+                continue
+            assignments.append(f"{column} = ?")
+            params.append(value)
+
+        if assignments:
+            assignments.append("updated_at = datetime('now')")
+            self._conn.execute(
+                f"UPDATE user_accounts SET {', '.join(assignments)} WHERE user_id = ?",
+                (*params, user_id),
+            )
+            self._conn.commit()
+
+        return self.get_user_account(user_id) or current
+
+    def list_user_favorites(self, user_id: str, limit: int = 20) -> list[UserProductRecord]:
+        self._ensure_account(user_id)
+        rows = self._conn.execute(
+            """
+            SELECT f.item_id, f.created_at, p.id, p.title, p.category, p.attributes
+            FROM user_favorites f
+            JOIN products p ON p.id = f.item_id
+            WHERE f.user_id = ?
+            ORDER BY f.created_at DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+        return self._product_records_from_rows(rows, timestamp_key="created_at")
+
+    def add_favorite(self, user_id: str, item_id: int) -> UserProductRecord:
+        self._ensure_account(user_id)
+        self._conn.execute(
+            """
+            INSERT INTO user_favorites (user_id, item_id, created_at)
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT(user_id, item_id) DO UPDATE SET created_at = excluded.created_at
+            """,
+            (user_id, item_id),
+        )
+        self._conn.commit()
+        row = self._conn.execute(
+            """
+            SELECT f.item_id, f.created_at, p.id, p.title, p.category, p.attributes
+            FROM user_favorites f
+            JOIN products p ON p.id = f.item_id
+            WHERE f.user_id = ? AND f.item_id = ?
+            """,
+            (user_id, item_id),
+        ).fetchone()
+        records = self._product_records_from_rows([row] if row else [], timestamp_key="created_at")
+        if not records:
+            raise ValueError(f"Unknown item: {item_id}")
+        return records[0]
+
+    def remove_favorite(self, user_id: str, item_id: int) -> None:
+        self._conn.execute(
+            "DELETE FROM user_favorites WHERE user_id = ? AND item_id = ?",
+            (user_id, item_id),
+        )
+        self._conn.commit()
+
+    def list_view_history(self, user_id: str, limit: int = 20) -> list[UserProductRecord]:
+        rows = self._conn.execute(
+            """
+            SELECT latest.item_id, latest.timestamp, p.id, p.title, p.category, p.attributes
+            FROM (
+                SELECT item_id, MAX(timestamp) AS timestamp
+                FROM events
+                WHERE user_id = ? AND event_type = 'click' AND item_id IS NOT NULL
+                GROUP BY item_id
+            ) latest
+            JOIN products p ON p.id = latest.item_id
+            ORDER BY latest.timestamp DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+        return self._product_records_from_rows(rows, timestamp_key="timestamp")
+
+    def list_search_sessions(self, user_id: str, limit: int = 20) -> list[SearchSessionSummary]:
+        rows = self._conn.execute(
+            """
+            SELECT query, metadata, timestamp
+            FROM events
+            WHERE user_id = ? AND event_type = 'search' AND query IS NOT NULL
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+        result: list[SearchSessionSummary] = []
+        for row in rows:
+            metadata = self._loads_json(row["metadata"], {})
+            result.append(
+                SearchSessionSummary(
+                    query=row["query"],
+                    timestamp=self._parse_timestamp(row["timestamp"]),
+                    results_context=metadata.get("context") or metadata.get("source"),
+                    category=metadata.get("category"),
+                )
+            )
+        return result
+
+    def get_personalized_categories(self, user_id: str, limit: int = 6) -> list[CategorySummary]:
+        profile = self.get_user_profile(user_id)
+        entries = sorted(
+            profile.category_affinity.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:limit]
+        return [
+            CategorySummary(
+                category=category,
+                count=max(1, round(score * max(profile.total_events, 1))),
+            )
+            for category, score in entries
+        ]
+
+    def get_personalized_popular_products(self, user_id: str, limit: int = 8) -> list[UserProductRecord]:
+        profile = self.get_user_profile(user_id)
+        top_categories = [
+            category
+            for category, _score in sorted(
+                profile.category_affinity.items(),
+                key=lambda item: item[1],
+                reverse=True,
+            )[:4]
+        ]
+
+        if not top_categories:
+            rows = self._conn.execute(
+                """
+                SELECT p.id, p.title, p.category, p.attributes, COUNT(c.contract_id) AS contracts_count, AVG(c.price) AS average_price
+                FROM products p
+                LEFT JOIN contracts c ON c.product_id = p.id
+                GROUP BY p.id
+                ORDER BY contracts_count DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        else:
+            placeholders = ",".join("?" * len(top_categories))
+            rows = self._conn.execute(
+                f"""
+                SELECT p.id, p.title, p.category, p.attributes, COUNT(c.contract_id) AS contracts_count, AVG(c.price) AS average_price
+                FROM products p
+                LEFT JOIN contracts c ON c.product_id = p.id
+                WHERE p.category IN ({placeholders})
+                GROUP BY p.id
+                ORDER BY contracts_count DESC
+                LIMIT ?
+                """,
+                (*top_categories, limit),
+            ).fetchall()
+
+        return self._product_records_from_rows(rows)
+
+    def get_user_dashboard(
+        self,
+        user_id: str,
+        favorites_limit: int = 8,
+        history_limit: int = 8,
+        sessions_limit: int = 8,
+        products_limit: int = 8,
+        categories_limit: int = 6,
+    ) -> UserDashboard:
+        account = self.login_user(user_id)
+        profile = self.get_user_profile(user_id)
+        return UserDashboard(
+            account=account,
+            profile=profile,
+            preferred_categories=self.get_personalized_categories(user_id, limit=categories_limit),
+            popular_products=self.get_personalized_popular_products(user_id, limit=products_limit),
+            viewed_products=self.list_view_history(user_id, limit=history_limit),
+            favorite_products=self.list_user_favorites(user_id, limit=favorites_limit),
+            search_sessions=self.list_search_sessions(user_id, limit=sessions_limit),
+        )
 
     # ---- Events ----
 
@@ -460,6 +713,68 @@ class RealDataRepository:
         self._conn.commit()
 
     # ---- Internal ----
+
+    def _ensure_account(self, user_id: str, role: UserRole = "customer") -> None:
+        profile_row = self._conn.execute(
+            """
+            SELECT user_id, user_name
+            FROM user_profiles_cache
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+        if not profile_row:
+            raise ValueError(f"Unknown user: {user_id}")
+
+        self._conn.execute(
+            """
+            INSERT INTO user_accounts (
+                user_id, organization_name, contact_name, role
+            )
+            VALUES (?, ?, '', ?)
+            ON CONFLICT(user_id) DO NOTHING
+            """,
+            (user_id, profile_row["user_name"] or user_id, role),
+        )
+        self._conn.commit()
+
+    def _loads_json(self, value: str | None, default):
+        if not value:
+            return default
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return default
+
+    def _parse_timestamp(self, value: str | None) -> datetime:
+        if not value:
+            return datetime.now(timezone.utc)
+        try:
+            return datetime.fromisoformat(value)
+        except (TypeError, ValueError):
+            return datetime.now(timezone.utc)
+
+    def _product_records_from_rows(self, rows, timestamp_key: str | None = None) -> list[UserProductRecord]:
+        records: list[UserProductRecord] = []
+        product_ids = [row["id"] for row in rows if row]
+        popularity = self.get_products_popularity(product_ids)
+        prices = self.get_products_prices(product_ids)
+        for row in rows:
+            if not row:
+                continue
+            product = self._product_from_row(row)
+            raw_attrs = product.attributes.get("raw", "")
+            if raw_attrs and len(raw_attrs) > 280:
+                product.attributes["raw"] = f"{raw_attrs[:277]}..."
+            records.append(
+                UserProductRecord(
+                    product=product,
+                    contracts_count=row["contracts_count"] if "contracts_count" in row.keys() else popularity.get(product.id, 0),
+                    average_price=row["average_price"] if "average_price" in row.keys() else prices.get(product.id),
+                    timestamp=self._parse_timestamp(row[timestamp_key]) if timestamp_key and row[timestamp_key] else None,
+                )
+            )
+        return records
 
     def _product_from_row(self, row) -> Product:
         attrs_raw = row["attributes"] if row["attributes"] else ""

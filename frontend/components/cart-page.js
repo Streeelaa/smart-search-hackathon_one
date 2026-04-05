@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { getCart, removeFromCart } from "../lib/cart";
 import { formatCurrency } from "../lib/format";
 import { getProductImage } from "../lib/product-images";
-import { PortalShell } from "./portal-shell";
+import { PortalShellV2 } from "./portal-shell-v2";
 
 export function CartPage() {
   const [items, setItems] = useState([]);
@@ -22,7 +22,7 @@ export function CartPage() {
   }, []);
 
   return (
-    <PortalShell>
+    <PortalShellV2>
       <section className="surface">
         <div className="section-head">
           <div>
@@ -51,6 +51,6 @@ export function CartPage() {
           <p className="muted-copy">Корзина пока пустая. Добавьте товары из поиска или каталога.</p>
         )}
       </section>
-    </PortalShell>
+    </PortalShellV2>
   );
 }

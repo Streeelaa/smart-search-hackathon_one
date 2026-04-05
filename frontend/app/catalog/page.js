@@ -1,5 +1,5 @@
-import { CatalogPageV2 } from "../../components/catalog-page-v2";
+import { CatalogPageV3 } from "../../components/catalog-page-v3";
 
 export default function Page() {
-  return <CatalogPageV2 />;
+  return <CatalogPageV3 />;
 }

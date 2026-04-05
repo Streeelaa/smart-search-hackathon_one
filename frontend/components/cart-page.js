@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getCart, removeFromCart } from "../lib/cart";
 import { formatCurrency } from "../lib/format";
+import { getProductImage } from "../lib/product-images";
 import { PortalShell } from "./portal-shell";
 
 export function CartPage() {
@@ -34,6 +35,7 @@ export function CartPage() {
           <div className="stack-list">
             {items.map((item) => (
               <div className="list-card" key={item.id}>
+                <img alt={item.title} className="cart-thumb" src={getProductImage(item)} />
                 <div>
                   <strong>{item.title}</strong>
                   <p className="muted-copy">{item.category}</p>

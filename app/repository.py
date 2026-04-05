@@ -28,16 +28,28 @@ class RealDataRepository:
         """Backward compat — returns first 100 products."""
         return self.list_products(limit=100)
 
-    def list_products(self, category: str | None = None, limit: int = 20) -> list[Product]:
+    def list_products(
+        self,
+        category: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+        query: str | None = None,
+    ) -> list[Product]:
+        params: list[object] = []
+        clauses: list[str] = []
+
         if category:
-            rows = self._conn.execute(
-                "SELECT * FROM products WHERE category = ? LIMIT ?",
-                (category.strip(), limit),
-            ).fetchall()
-        else:
-            rows = self._conn.execute(
-                "SELECT * FROM products LIMIT ?", (limit,)
-            ).fetchall()
+            clauses.append("category = ?")
+            params.append(category.strip())
+        if query:
+            clauses.append("title LIKE ?")
+            params.append(f"%{query.strip()}%")
+
+        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = self._conn.execute(
+            f"SELECT * FROM products {where_sql} ORDER BY id LIMIT ? OFFSET ?",
+            (*params, limit, offset),
+        ).fetchall()
         return [self._product_from_row(r) for r in rows]
 
     def get_product(self, item_id: int) -> Product | None:
@@ -147,6 +159,32 @@ class RealDataRepository:
             LIMIT ?
             """,
             (limit,),
+        ).fetchall()
+        result = []
+        for r in rows:
+            ca = json.loads(r["category_affinity"]) if r["category_affinity"] else {}
+            top_cat = next(iter(ca), "")
+            result.append({
+                "user_id": r["user_id"],
+                "user_name": r["user_name"],
+                "user_region": r["user_region"],
+                "total_contracts": r["total_contracts"],
+                "avg_price": r["avg_price"],
+                "top_category": top_cat,
+            })
+        return result
+
+    def search_users(self, query: str, limit: int = 20) -> list[dict]:
+        rows = self._conn.execute(
+            """
+            SELECT user_id, user_name, user_region, total_contracts,
+                   CAST(avg_price AS INTEGER) AS avg_price, category_affinity
+            FROM user_profiles_cache
+            WHERE user_id LIKE ? OR user_name LIKE ? OR user_region LIKE ?
+            ORDER BY total_contracts DESC
+            LIMIT ?
+            """,
+            (f"%{query}%", f"%{query}%", f"%{query}%", limit),
         ).fetchall()
         result = []
         for r in rows:
@@ -274,6 +312,74 @@ class RealDataRepository:
         rows = self._conn.execute(
             "SELECT category, COUNT(*) as cnt FROM products WHERE category LIKE ? GROUP BY category ORDER BY cnt DESC LIMIT ?",
             (f"%{query}%", limit),
+        ).fetchall()
+        return [(r["category"], r["cnt"]) for r in rows]
+
+    def disambiguate_categories(self, query: str, limit: int = 6) -> list[tuple[str, int]]:
+        """Suggest the most likely categories for an ambiguous query."""
+        if not query or len(query.strip()) < 2:
+            return []
+
+        normalized = query.strip().lower()
+        variants = {normalized}
+        for token in normalized.split():
+            if len(token) >= 3:
+                variants.add(token[:4])
+            if len(token) >= 5:
+                variants.add(token[:-1])
+
+        variants = {variant for variant in variants if len(variant) >= 2}
+        if not variants:
+            return []
+
+        patterns: list[str] = []
+        for variant in variants:
+            patterns.append(f"%{variant}%")
+            patterns.append(f"%{variant.capitalize()}%")
+        patterns = list(dict.fromkeys(patterns))
+
+        direct_where = " OR ".join("category LIKE ?" for _ in patterns)
+        direct_rows = self._conn.execute(
+            f"""
+            SELECT category, COUNT(*) as cnt
+            FROM products
+            WHERE {direct_where}
+            GROUP BY category
+            ORDER BY cnt DESC
+            LIMIT ?
+            """,
+            (*patterns, limit),
+        ).fetchall()
+        if len(direct_rows) >= min(limit, 3):
+            return [(r["category"], r["cnt"]) for r in direct_rows]
+
+        score_parts: list[str] = []
+        where_parts: list[str] = []
+        params: list[object] = []
+
+        for like_pattern in patterns:
+            score_parts.append(
+                "(CASE WHEN category LIKE ? THEN 30 ELSE 0 END + "
+                "CASE WHEN title LIKE ? THEN 8 ELSE 0 END)"
+            )
+            params.extend([like_pattern, like_pattern])
+            where_parts.append("(category LIKE ? OR title LIKE ?)")
+            params.extend([like_pattern, like_pattern])
+
+        score_sql = " + ".join(score_parts)
+        where_sql = " OR ".join(where_parts)
+        rows = self._conn.execute(
+            f"""
+            SELECT category,
+                   COUNT(*) as cnt,
+                   SUM({score_sql}) as score
+            FROM products
+            WHERE {where_sql}
+            GROUP BY category
+            ORDER BY score DESC, cnt DESC
+            LIMIT ?
+            """,
+            (*params, limit),
         ).fetchall()
         return [(r["category"], r["cnt"]) for r in rows]
 

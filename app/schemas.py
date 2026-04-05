@@ -21,6 +21,17 @@ class Product(BaseModel):
     aliases: list[str] = Field(default_factory=list)
 
 
+class ProductInsights(BaseModel):
+    product_id: int
+    contracts_count: int = 0
+    average_price: float | None = None
+
+
+class CatalogItem(BaseModel):
+    product: Product
+    insights: ProductInsights
+
+
 class CategoryFacet(BaseModel):
     category: str
     count: int
@@ -69,6 +80,44 @@ class UserProfile(BaseModel):
     tag_affinity: dict[str, float] = Field(default_factory=dict)
     recent_queries: list[str] = Field(default_factory=list)
     average_price: float | None = None
+
+
+class UserSummary(BaseModel):
+    user_id: str
+    user_name: str
+    user_region: str | None = None
+    total_contracts: int = 0
+    avg_price: float | None = None
+    top_category: str | None = None
+
+
+class CatalogStats(BaseModel):
+    products_count: int
+    profiles_count: int
+    categories_count: int
+    events_count: int
+
+
+class CategorySummary(BaseModel):
+    category: str
+    count: int
+
+
+class PortalOverview(BaseModel):
+    stats: CatalogStats
+    featured_categories: list[CategorySummary] = Field(default_factory=list)
+    featured_users: list[UserSummary] = Field(default_factory=list)
+
+
+SuggestionType = Literal["category", "product"]
+
+
+class SearchSuggestion(BaseModel):
+    type: SuggestionType
+    title: str
+    count: int | None = None
+    category: str | None = None
+    id: int | None = None
 
 
 class HealthResponse(BaseModel):

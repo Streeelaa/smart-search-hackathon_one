@@ -30,3 +30,5 @@ test_speed.py
 test_upgrade.py
 test_vocab.py
 .mypy_cache/
+frontend/node_modules/
+frontend/.next/

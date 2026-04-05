@@ -6,7 +6,7 @@ from app.evaluation_v2 import evaluate_search
 from app.ingestion import import_catalog, import_events
 from app.repository import repository
 from app.reranker import reranker
-from app.schemas import EvaluationComparisonResponse, EvaluationSummary, Event, EventCreate, HealthResponse, ImportRequest, ImportResult, Product, RerankerStatusResponse, SearchMode, SearchResponse, SemanticStatusResponse, StorageStatusResponse, UserProfile
+from app.schemas import CatalogItem, CatalogStats, CategorySummary, EvaluationComparisonResponse, EvaluationSummary, Event, EventCreate, HealthResponse, ImportRequest, ImportResult, PortalOverview, Product, ProductInsights, RerankerStatusResponse, SearchMode, SearchResponse, SearchSuggestion, SemanticStatusResponse, StorageStatusResponse, UserProfile, UserSummary
 from app.semantic import semantic_engine
 from app.settings import settings
 from app.search import search_products, warm_up
@@ -52,6 +52,7 @@ def root() -> dict[str, str | list[str]]:
         "docs": "/docs",
         "endpoints": [
             "/health",
+            "/portal/overview",
             "/catalog/items",
             "/search?q=ноутбук&user_id=user-1&mode=hybrid",
             "/search/synonyms",
@@ -61,6 +62,7 @@ def root() -> dict[str, str | list[str]]:
             "/admin/import/catalog",
             "/admin/import/events",
             "/events",
+            "/users",
             "/users/user-1/profile",
             "/metrics/compare",
         ],
@@ -78,6 +80,34 @@ def healthcheck() -> HealthResponse:
     )
 
 
+def _catalog_stats() -> CatalogStats:
+    return CatalogStats(
+        products_count=repository.count_products(),
+        profiles_count=repository.count_profiles(),
+        categories_count=repository.count_categories(),
+        events_count=repository.count_events(),
+    )
+
+
+def _user_summary_rows(rows: list[dict]) -> list[UserSummary]:
+    return [UserSummary(**row) for row in rows]
+
+
+@app.get("/portal/overview", response_model=PortalOverview)
+def portal_overview(
+    limit_categories: int = Query(default=8, ge=1, le=24),
+    limit_users: int = Query(default=6, ge=1, le=24),
+) -> PortalOverview:
+    return PortalOverview(
+        stats=_catalog_stats(),
+        featured_categories=[
+            CategorySummary(category=category, count=count)
+            for category, count in repository.get_all_categories(limit=limit_categories)
+        ],
+        featured_users=_user_summary_rows(repository.list_users(limit=limit_users)),
+    )
+
+
 @app.get("/storage/status", response_model=StorageStatusResponse)
 def storage_status() -> StorageStatusResponse:
     return StorageStatusResponse(
@@ -87,12 +117,28 @@ def storage_status() -> StorageStatusResponse:
     )
 
 
-@app.get("/catalog/items", response_model=list[Product])
+@app.get("/catalog/items", response_model=list[CatalogItem])
 def list_items(
     category: str | None = Query(default=None, description="Filter catalog by category."),
+    q: str | None = Query(default=None, description="Filter catalog by title substring."),
     limit: int = Query(default=20, ge=1, le=100),
-) -> list[Product]:
-    return repository.list_products(category=category)[:limit]
+    offset: int = Query(default=0, ge=0, le=10_000),
+) -> list[CatalogItem]:
+    products = repository.list_products(category=category, query=q, limit=limit, offset=offset)
+    product_ids = [product.id for product in products]
+    popularity = repository.get_products_popularity(product_ids)
+    prices = repository.get_products_prices(product_ids)
+    return [
+        CatalogItem(
+            product=product,
+            insights=ProductInsights(
+                product_id=product.id,
+                contracts_count=popularity.get(product.id, 0),
+                average_price=prices.get(product.id),
+            ),
+        )
+        for product in products
+    ]
 
 
 @app.get("/catalog/items/{item_id}", response_model=Product)
@@ -101,6 +147,18 @@ def get_item(item_id: int) -> Product:
     if product is None:
         raise HTTPException(status_code=404, detail="Item not found")
     return product
+
+
+@app.get("/catalog/items/{item_id}/insights", response_model=ProductInsights)
+def get_item_insights(item_id: int) -> ProductInsights:
+    product = repository.get_product(item_id)
+    if product is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return ProductInsights(
+        product_id=item_id,
+        contracts_count=repository.get_product_contract_count(item_id),
+        average_price=repository.get_product_avg_price(item_id),
+    )
 
 
 @app.get("/search", response_model=SearchResponse)
@@ -114,27 +172,37 @@ def search(
     return search_products(query=q, limit=limit, user_id=user_id, mode=mode, category_filter=category)
 
 
-@app.get("/catalog/categories")
+@app.get("/catalog/categories", response_model=list[CategorySummary])
 def list_categories(
     q: str | None = Query(default=None, description="Filter categories by substring."),
     limit: int = Query(default=50, ge=1, le=500),
-) -> list[dict]:
+) -> list[CategorySummary]:
     """List categories with product counts. Optionally filter by substring."""
     if q:
         cats = repository.search_categories(q, limit=limit)
     else:
         cats = repository.get_all_categories(limit=limit)
-    return [{"category": c, "count": n} for c, n in cats]
+    return [CategorySummary(category=c, count=n) for c, n in cats]
 
 
-@app.get("/search/suggest")
+@app.get("/search/suggest", response_model=list[SearchSuggestion])
 def search_suggest(
     q: str = Query(min_length=1, description="Partial query for suggestions."),
-    limit: int = Query(default=5, ge=1, le=20),
-) -> list[dict]:
-    """Return search suggestions based on category matches."""
-    cats = repository.search_categories(q, limit=limit)
-    return [{"suggestion": c, "type": "category", "count": n} for c, n in cats]
+    limit: int = Query(default=8, ge=1, le=20),
+) -> list[SearchSuggestion]:
+    """Return search suggestions for categories and product titles."""
+    return [SearchSuggestion(**item) for item in repository.suggest_products(q, limit=limit)]
+
+
+@app.get("/search/disambiguate", response_model=list[CategorySummary])
+def search_disambiguate(
+    q: str = Query(min_length=2, description="Query that needs category guidance."),
+    limit: int = Query(default=6, ge=1, le=12),
+) -> list[CategorySummary]:
+    return [
+        CategorySummary(category=category, count=count)
+        for category, count in repository.disambiguate_categories(q, limit=limit)
+    ]
 
 
 @app.get("/search/synonyms", response_model=dict[str, list[str]])
@@ -200,6 +268,15 @@ def create_event(payload: EventCreate) -> Event:
     if payload.item_id is not None and repository.get_product(payload.item_id) is None:
         raise HTTPException(status_code=404, detail="Item not found for event")
     return repository.add_event(payload)
+
+
+@app.get("/users", response_model=list[UserSummary])
+def list_users(
+    q: str | None = Query(default=None, description="Filter organizations by id, name or region."),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> list[UserSummary]:
+    rows = repository.search_users(q, limit=limit) if q else repository.list_users(limit=limit)
+    return _user_summary_rows(rows)
 
 
 @app.get("/users/{user_id}/profile", response_model=UserProfile)

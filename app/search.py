@@ -15,6 +15,14 @@ from app.text_processing import correct_tokens, normalize_query, normalize_text,
 logger = logging.getLogger(__name__)
 
 PERSONALIZATION_WEIGHT = 5.0
+AMBIGUOUS_QUERY_PERSONALIZATION_BONUS = 24.0
+MAX_PERSONALIZATION_MULTIPLIER = 8.0
+SHORT_QUERY_TOKEN_THRESHOLD = 2
+SHORT_TOKEN_SYNONYM_THRESHOLD = 4
+SEMANTIC_MIN_AMBIGUITY = 0.58
+SEMANTIC_TOP_SCORE_REFERENCE = 12.0
+SEMANTIC_BONUS_BASE = 1.2
+SEMANTIC_BONUS_MAX = 4.5
 
 # ---- Stop words — short/common words that slow FTS5 without adding value ----
 _FTS_STOP_WORDS = frozenset([
@@ -41,10 +49,10 @@ def warm_up() -> None:
     _get_vocabulary()
 
 
-@lru_cache(maxsize=512)
-def _cached_build_fts_query_terms(query: str) -> tuple[str, ...]:
+@lru_cache(maxsize=1024)
+def _cached_build_fts_query_terms(query: str, expand_synonyms: bool = True) -> tuple[str, ...]:
     """Cached version — returns tuple for hashability."""
-    return tuple(build_fts_query_terms(query))
+    return tuple(build_fts_query_terms(query, expand_synonyms=expand_synonyms))
 
 
 # ---- Search result cache ----
@@ -52,7 +60,7 @@ _search_cache: dict[tuple, SearchResponse] = {}
 _SEARCH_CACHE_MAX = 256
 
 
-def build_fts_query_terms(query: str) -> list[str]:
+def build_fts_query_terms(query: str, expand_synonyms: bool = True) -> list[str]:
     """Build diverse search terms for FTS5 from user query.
 
     Combines raw tokens (with inflections), lemmatised forms, synonym
@@ -62,22 +70,23 @@ def build_fts_query_terms(query: str) -> list[str]:
     raw_tokens = tokenize(query)
     normalized = normalize_query(query)
     try:
-        expanded = expand_terms_with_synonyms(normalized)
+        expanded = expand_terms_with_synonyms(normalized) if expand_synonyms else list(normalized)
     except Exception:
         expanded = list(normalized)
 
     # Also get raw synonym values (before normalization) to preserve plurals
     raw_synonym_tokens: list[str] = []
-    try:
-        from app.synonyms import load_synonyms
-        syn_map = load_synonyms()
-        for token in normalized:
-            norm_key = normalize_text(token)
-            for syn_value in syn_map.get(norm_key, []):
-                for t in tokenize(syn_value):
-                    raw_synonym_tokens.append(t)
-    except Exception:
-        pass
+    if expand_synonyms:
+        try:
+            from app.synonyms import load_synonyms
+            syn_map = load_synonyms()
+            for token in normalized:
+                norm_key = normalize_text(token)
+                for syn_value in syn_map.get(norm_key, []):
+                    for t in tokenize(syn_value):
+                        raw_synonym_tokens.append(t)
+        except Exception:
+            pass
 
     all_terms: list[str] = []
     seen: set[str] = set()
@@ -89,8 +98,120 @@ def build_fts_query_terms(query: str) -> list[str]:
     return all_terms[:15]
 
 
+def _should_expand_synonyms(raw_tokens: list[str], normalized_tokens: list[str]) -> bool:
+    """Expand synonyms aggressively only for confident or abbreviation-like queries."""
+    if len(normalized_tokens) != 1:
+        return True
+    token = normalized_tokens[0]
+    raw_token = raw_tokens[0] if raw_tokens else token
+    if len(token) <= SHORT_TOKEN_SYNONYM_THRESHOLD:
+        return True
+    if any(ch.isdigit() for ch in raw_token):
+        return True
+    if any("a" <= ch <= "z" for ch in token):
+        return True
+    return False
+
+
+def _query_ambiguity_score(
+    raw_tokens: list[str],
+    candidates: list[tuple[Product, float]],
+) -> float:
+    """Estimate how ambiguous the current query/result set is."""
+    if not candidates:
+        return 0.0
+
+    top_candidates = candidates[:15]
+    unique_categories = len({product.category for product, _ in top_candidates})
+    diversity_score = min(1.0, unique_categories / 8.0)
+    short_query_score = 1.0 if len(raw_tokens) <= SHORT_QUERY_TOKEN_THRESHOLD else 0.0
+
+    top_scores = [score for _, score in top_candidates[:5]]
+    flatness_score = 0.0
+    if len(top_scores) >= 2:
+        lead = max(top_scores)
+        tail = min(top_scores)
+        span_ratio = abs(lead - tail) / max(abs(lead), 1.0)
+        flatness_score = 1.0 - min(1.0, span_ratio)
+
+    ambiguity = (
+        short_query_score * 0.45
+        + diversity_score * 0.35
+        + flatness_score * 0.20
+    )
+    return min(1.0, ambiguity)
+
+
+def _keyword_confidence_score(candidates: list[tuple[Product, float]], limit: int) -> float:
+    """Estimate how much we can trust lexical retrieval on its own."""
+    if not candidates:
+        return 0.0
+
+    top_scores = [score for _, score in candidates[:5]]
+    lead = top_scores[0]
+    third = top_scores[min(2, len(top_scores) - 1)]
+    coverage_score = min(1.0, len(candidates) / max(limit * 3, 1))
+    strength_score = min(1.0, lead / SEMANTIC_TOP_SCORE_REFERENCE)
+    dominance_score = min(1.0, max(0.0, (lead - third) / max(abs(lead), 1.0)))
+    confidence = (
+        coverage_score * 0.35
+        + strength_score * 0.40
+        + dominance_score * 0.25
+    )
+    return min(1.0, confidence)
+
+
+def _should_use_semantic(
+    mode: SearchMode,
+    candidates: list[tuple[Product, float]],
+    limit: int,
+    ambiguity_score: float,
+    keyword_confidence: float,
+) -> bool:
+    if mode == "semantic":
+        return True
+    if mode != "hybrid":
+        return False
+    if not candidates or len(candidates) < limit * 2:
+        return True
+    if ambiguity_score >= SEMANTIC_MIN_AMBIGUITY:
+        return True
+    return keyword_confidence < 0.45
+
+
+def _should_inject_semantic_candidates(
+    mode: SearchMode,
+    candidates: list[tuple[Product, float]],
+    limit: int,
+    ambiguity_score: float,
+    keyword_confidence: float,
+) -> bool:
+    if mode == "semantic":
+        return True
+    if not candidates or len(candidates) < limit:
+        return True
+    return ambiguity_score >= 0.75 and keyword_confidence < 0.65
+
+
+def _semantic_bonus_weight(
+    mode: SearchMode,
+    ambiguity_score: float,
+    keyword_confidence: float,
+) -> float:
+    if mode == "semantic":
+        return SEMANTIC_BONUS_MAX
+    weight = (
+        SEMANTIC_BONUS_BASE
+        + ambiguity_score * 1.8
+        + max(0.0, 0.55 - keyword_confidence) * 2.5
+    )
+    return max(0.0, min(SEMANTIC_BONUS_MAX, weight))
+
+
 def personalization_multiplier(
-    product: Product, profile: UserProfile | None
+    product: Product,
+    profile: UserProfile | None,
+    ambiguity_score: float = 0.0,
 ) -> tuple[float, list[str]]:
     """Compute multiplicative personalization boost from contract history.
 
@@ -104,9 +225,15 @@ def personalization_multiplier(
 
     cat_score = profile.category_affinity.get(product.category, 0.0)
     if cat_score > 0:
-        multiplier = 1.0 + cat_score * PERSONALIZATION_WEIGHT
+        dynamic_weight = PERSONALIZATION_WEIGHT + ambiguity_score * AMBIGUOUS_QUERY_PERSONALIZATION_BONUS
+        multiplier = min(
+            1.0 + cat_score * dynamic_weight,
+            MAX_PERSONALIZATION_MULTIPLIER,
+        )
         pct = f"{cat_score:.0%}"
         reasons.append(f"Категория в {pct} закупок пользователя (+{multiplier - 1:.0%} буст)")
+        if ambiguity_score >= 0.55:
+            reasons.append("Короткий/неоднозначный запрос: персонализация усилена")
         return multiplier, reasons
 
     return 1.0, []
@@ -172,23 +299,36 @@ def search_products(
     corrected_tokens = list(normalized)
 
     # 4. Expand with synonyms
+    expand_synonyms = _should_expand_synonyms(raw_tokens, corrected_tokens)
     try:
-        expanded_terms = expand_terms_with_synonyms(corrected_tokens)
+        expanded_terms = expand_terms_with_synonyms(corrected_tokens) if expand_synonyms else list(corrected_tokens)
     except Exception:
         expanded_terms = list(corrected_tokens)
 
+    # 4a. Load profile early so we can tune reranking for ambiguous queries
+    profile = repository.get_user_profile(user_id) if user_id else None
+
     # 5. FTS5 BM25 retrieval (use both original and corrected tokens)
-    fts_terms = list(_cached_build_fts_query_terms(query))
+    fts_terms = list(_cached_build_fts_query_terms(query, expand_synonyms))
     if typo_corrected:
-        fts_terms_corrected = list(_cached_build_fts_query_terms(corrected_query))
+        fts_terms_corrected = list(_cached_build_fts_query_terms(corrected_query, expand_synonyms))
         fts_terms = list(dict.fromkeys(fts_terms + fts_terms_corrected))
     candidate_limit = max(limit * 10, 100)
     candidates = repository.search_fts5(fts_terms, limit=candidate_limit)
+    ambiguity_score = _query_ambiguity_score(corrected_tokens or raw_tokens, candidates)
+    keyword_confidence = _keyword_confidence_score(candidates, limit)
 
-    # 4b. Semantic expansion: in hybrid mode, always try semantic enrichment
+    # 4b. Semantic expansion: only when lexical evidence is weak or ambiguous
     semantic_categories: list[tuple[str, float]] = []
-    fts_result_count = len(candidates)
-    needs_semantic = (mode == "hybrid") or (mode == "semantic") or (fts_result_count < limit * 3)
+    semantic_category_scores: dict[str, float] = {}
+    semantic_injected_ids: set[int] = set()
+    needs_semantic = _should_use_semantic(
+        mode,
+        candidates,
+        limit,
+        ambiguity_score,
+        keyword_confidence,
+    )
     try:
         from app.semantic import semantic_engine
         if semantic_engine._ready and needs_semantic:
@@ -197,25 +337,34 @@ def search_products(
                 semantic_engine.find_similar_categories_cached(sem_query, top_k=3)
             )
             if semantic_categories:
+                semantic_category_scores = {
+                    cat_name: cat_score for cat_name, cat_score in semantic_categories
+                }
                 seen_ids = {p.id for p, _ in candidates}
-                for cat_name, cat_score in semantic_categories:
-                    if category_filter and cat_name != category_filter:
-                        continue
-                    cat_products = repository.list_products(category=cat_name, limit=10)
-                    for product in cat_products:
-                        if product.id not in seen_ids:
-                            seen_ids.add(product.id)
-                            candidates.append((product, cat_score * 2.0))
+                if _should_inject_semantic_candidates(
+                    mode,
+                    candidates,
+                    limit,
+                    ambiguity_score,
+                    keyword_confidence,
+                ):
+                    for cat_name, _cat_score in semantic_categories:
+                        if category_filter and cat_name != category_filter:
+                            continue
+                        cat_products = repository.list_products(category=cat_name, limit=10)
+                        for product in cat_products:
+                            if product.id not in seen_ids:
+                                seen_ids.add(product.id)
+                                semantic_injected_ids.add(product.id)
+                                candidates.append((product, 0.0))
     except Exception:
         pass
-
-    # 5. User profile
-    profile = repository.get_user_profile(user_id) if user_id else None
 
     # 6. Score candidates
     scored: list[tuple[Product, float, list[str]]] = []
     query_lower = query.lower().strip()
     highlight_tokens = raw_tokens + corrected_tokens
+    semantic_bonus_weight = _semantic_bonus_weight(mode, ambiguity_score, keyword_confidence)
 
     for product, bm25_score in candidates:
         # Category filter
@@ -245,13 +394,24 @@ def search_products(
                 reasons.append(f"Категория: {product.category}")
                 break
 
-        # BM25 reason
-        reasons.insert(0, f"BM25: {bm25_score:.1f}")
+        semantic_score = semantic_category_scores.get(product.category, 0.0)
+        if semantic_score > 0 and semantic_bonus_weight > 0:
+            total_score += semantic_score * semantic_bonus_weight
+            reasons.append(f"Semantic category: {product.category}")
+
+        if product.id in semantic_injected_ids:
+            reasons.insert(0, f"SEM: {semantic_score:.2f}")
+        else:
+            reasons.insert(0, f"BM25: {bm25_score:.1f}")
 
         # Personalization: multiplicative boost (only in hybrid mode)
         is_personalized = 0
         if mode == "hybrid":
-            mult, pers_reasons = personalization_multiplier(product, profile)
+            mult, pers_reasons = personalization_multiplier(
+                product,
+                profile,
+                ambiguity_score=ambiguity_score,
+            )
             if mult > 1.0:
                 total_score *= mult
                 reasons.extend(pers_reasons)

@@ -1,6 +1,6 @@
 from functools import lru_cache
 import re
-from difflib import get_close_matches
+from difflib import SequenceMatcher, get_close_matches
 
 try:
     from rapidfuzz import process as rapidfuzz_process
@@ -57,6 +57,9 @@ def correct_tokens(tokens: list[str], vocabulary: set[str]) -> tuple[list[str], 
         if token in vocabulary or len(token) < 3:
             corrected.append(token)
             continue
+        if _looks_like_catalog_prefix(token, vocabulary):
+            corrected.append(token)
+            continue
         # Also check normalized form
         normed = normalize_token(token)
         if normed in vocabulary:
@@ -73,6 +76,14 @@ def correct_tokens(tokens: list[str], vocabulary: set[str]) -> tuple[list[str], 
         if normed in _MANUAL_CORRECTIONS:
             corrected.append(_MANUAL_CORRECTIONS[normed])
             changed = True
+            continue
+
+        direct_match = _find_transposition_match(token, vocabulary)
+        if direct_match is None and normed != token:
+            direct_match = _find_transposition_match(normed, vocabulary)
+        if direct_match is not None:
+            corrected.append(direct_match)
+            changed = direct_match != token or changed
             continue
 
         # If pymorphy3 recognizes the word with HIGH confidence AND it's in a real
@@ -165,6 +176,47 @@ _MANUAL_CORRECTIONS: dict[str, str] = {
 # Pre-filtered vocabulary caches for fast lookup
 _vocab_by_prefix: dict[str, list[str]] = {}
 _find_best_match_cache: dict[str, str | None] = {}
+_prefix_intent_cache: dict[str, bool] = {}
+
+
+def _is_reasonable_correction(token: str, candidate: str) -> bool:
+    """Reject fuzzy matches that collapse a full token into a short fragment."""
+    if not candidate or candidate == token:
+        return bool(candidate)
+    if len(token) >= 4 and len(candidate) < 3:
+        return False
+    if len(candidate) + 2 < len(token):
+        return False
+    if token[:1] != candidate[:1]:
+        return False
+
+    similarity = SequenceMatcher(None, token, candidate).ratio()
+    min_similarity = 0.72 if len(token) <= 4 else 0.76
+    if len(candidate) < len(token):
+        min_similarity += 0.05
+    return similarity >= min_similarity
+
+
+def _looks_like_catalog_prefix(token: str, vocabulary: set[str]) -> bool:
+    """Treat short catalog prefixes as valid user intent, not as typos."""
+    if len(token) < 4:
+        return False
+    if token in _prefix_intent_cache:
+        return _prefix_intent_cache[token]
+
+    prefix_pool = _get_prefix_vocab(token[:2], vocabulary)
+    matches = 0
+    for word in prefix_pool:
+        if len(word) <= len(token):
+            continue
+        if word.startswith(token):
+            matches += 1
+            if matches >= 2:
+                _prefix_intent_cache[token] = True
+                return True
+
+    _prefix_intent_cache[token] = False
+    return False
 
 
 def _get_prefix_vocab(prefix: str, vocabulary: set[str]) -> list[str]:
@@ -172,6 +224,22 @@ def _get_prefix_vocab(prefix: str, vocabulary: set[str]) -> list[str]:
     if prefix not in _vocab_by_prefix:
         _vocab_by_prefix[prefix] = [w for w in vocabulary if w.startswith(prefix)]
     return _vocab_by_prefix[prefix]
+
+
+def _find_transposition_match(token: str, vocabulary: set[str]) -> str | None:
+    """Fix one adjacent swap directly before falling back to fuzzy matching."""
+    if len(token) < 4:
+        return None
+    for i in range(len(token) - 1):
+        if token[i] == token[i + 1]:
+            continue
+        swapped = token[:i] + token[i + 1] + token[i] + token[i + 2:]
+        if swapped in vocabulary:
+            return swapped
+        swapped_norm = normalize_token(swapped)
+        if swapped_norm in vocabulary:
+            return swapped_norm
+    return None
 
 
 def find_best_match(token: str, vocabulary: set[str]) -> str | None:
@@ -201,7 +269,12 @@ def find_best_match(token: str, vocabulary: set[str]) -> str | None:
     
     # Filter by similar length (±3 chars to be more generous)
     tlen = len(token)
-    candidates = [w for w in candidates_set if abs(len(w) - tlen) <= 3]
+    candidates = [
+        w
+        for w in candidates_set
+        if abs(len(w) - tlen) <= 3
+        and not (tlen >= 4 and len(w) < 3)
+    ]
     
     if not candidates:
         _find_best_match_cache[token] = None
@@ -211,10 +284,13 @@ def find_best_match(token: str, vocabulary: set[str]) -> str | None:
         match = rapidfuzz_process.extractOne(token, candidates, score_cutoff=65)
         if match is not None:
             result = str(match[0])
-            _find_best_match_cache[token] = result
-            return result
+            if _is_reasonable_correction(token, result):
+                _find_best_match_cache[token] = result
+                return result
 
     fallback = get_close_matches(token, candidates, n=1, cutoff=0.70)
     result = fallback[0] if fallback else None
+    if result is not None and not _is_reasonable_correction(token, result):
+        result = None
     _find_best_match_cache[token] = result
     return result

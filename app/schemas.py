@@ -120,10 +120,14 @@ class EvaluationCaseResult(BaseModel):
     user_id: str | None = None
     mode: SearchMode = "hybrid"
     expected_ids: list[int]
+    expected_categories: list[str] = Field(default_factory=list)
     returned_ids: list[int]
     hit_at_3: bool
     mrr_at_10: float
     ndcg_at_10: float
+    case_source: str = "manual"
+    case_weight: float = 1.0
+    notes: str | None = None
 
 
 class EvaluationSummary(BaseModel):

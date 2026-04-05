@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.evaluation_compare import compare_search_modes
-from app.evaluation import evaluate_search
+from app.evaluation_v2 import evaluate_search
 from app.ingestion import import_catalog, import_events
 from app.repository import repository
 from app.reranker import reranker

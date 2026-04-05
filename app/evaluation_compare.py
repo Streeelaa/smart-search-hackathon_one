@@ -1,7 +1,7 @@
 """Compare search quality across modes."""
 from __future__ import annotations
 
-from app.evaluation import evaluate_search
+from app.evaluation_v2 import evaluate_search
 from app.schemas import EvaluationComparisonResponse, EvaluationComparisonRow
 
 
@@ -10,7 +10,7 @@ def compare_search_modes() -> EvaluationComparisonResponse:
     best_mode = "hybrid"
     best_ndcg = -1.0
 
-    for mode in ("keyword", "hybrid"):
+    for mode in ("keyword", "semantic", "hybrid"):
         summary = evaluate_search(mode=mode)
         rows.append(
             EvaluationComparisonRow(

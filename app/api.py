@@ -175,13 +175,14 @@ def search(
 @app.get("/catalog/categories", response_model=list[CategorySummary])
 def list_categories(
     q: str | None = Query(default=None, description="Filter categories by substring."),
+    user_id: str | None = Query(default=None, description="Optional user id to prioritize customer-relevant categories."),
     limit: int = Query(default=50, ge=1, le=500),
 ) -> list[CategorySummary]:
     """List categories with product counts. Optionally filter by substring."""
     if q:
-        cats = repository.search_categories(q, limit=limit)
+        cats = repository.search_categories(q, limit=limit, user_id=user_id)
     else:
-        cats = repository.get_all_categories(limit=limit)
+        cats = repository.get_all_categories(limit=limit, user_id=user_id)
     return [CategorySummary(category=c, count=n) for c, n in cats]
 
 
@@ -197,11 +198,12 @@ def search_suggest(
 @app.get("/search/disambiguate", response_model=list[CategorySummary])
 def search_disambiguate(
     q: str = Query(min_length=2, description="Query that needs category guidance."),
+    user_id: str | None = Query(default=None, description="Optional user id to prioritize customer-relevant categories."),
     limit: int = Query(default=6, ge=1, le=12),
 ) -> list[CategorySummary]:
     return [
         CategorySummary(category=category, count=count)
-        for category, count in repository.disambiguate_categories(q, limit=limit)
+        for category, count in repository.disambiguate_categories(q, limit=limit, user_id=user_id)
     ]
 
 

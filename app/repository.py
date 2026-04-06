@@ -552,23 +552,33 @@ class RealDataRepository:
 
     # ---- Category facets & suggestions ----
 
-    def get_all_categories(self, limit: int = 200) -> list[tuple[str, int]]:
+    def get_all_categories(self, limit: int = 200, user_id: str | None = None) -> list[tuple[str, int]]:
         """Return (category, product_count) sorted by count descending."""
+        fetch_limit = max(limit * 8, 400) if user_id else limit
         rows = self._conn.execute(
             "SELECT category, COUNT(*) as cnt FROM products GROUP BY category ORDER BY cnt DESC LIMIT ?",
-            (limit,),
+            (fetch_limit,),
         ).fetchall()
-        return [(r["category"], r["cnt"]) for r in rows]
+        return self._rank_categories_for_user(
+            [(r["category"], r["cnt"]) for r in rows],
+            user_id=user_id,
+            limit=limit,
+        )
 
-    def search_categories(self, query: str, limit: int = 20) -> list[tuple[str, int]]:
+    def search_categories(self, query: str, limit: int = 20, user_id: str | None = None) -> list[tuple[str, int]]:
         """Search categories matching query substring."""
+        fetch_limit = max(limit * 6, 120) if user_id else limit
         rows = self._conn.execute(
             "SELECT category, COUNT(*) as cnt FROM products WHERE category LIKE ? GROUP BY category ORDER BY cnt DESC LIMIT ?",
-            (f"%{query}%", limit),
+            (f"%{query}%", fetch_limit),
         ).fetchall()
-        return [(r["category"], r["cnt"]) for r in rows]
+        return self._rank_categories_for_user(
+            [(r["category"], r["cnt"]) for r in rows],
+            user_id=user_id,
+            limit=limit,
+        )
 
-    def disambiguate_categories(self, query: str, limit: int = 6) -> list[tuple[str, int]]:
+    def disambiguate_categories(self, query: str, limit: int = 6, user_id: str | None = None) -> list[tuple[str, int]]:
         """Suggest the most likely categories for an ambiguous query."""
         if not query or len(query.strip()) < 2:
             return []
@@ -578,8 +588,12 @@ class RealDataRepository:
         for token in normalized.split():
             if len(token) >= 3:
                 variants.add(token[:4])
+                variants.add(token[:5])
+                variants.add(token[:6])
             if len(token) >= 5:
                 variants.add(token[:-1])
+            if len(token) >= 6:
+                variants.add(token[:-2])
 
         variants = {variant for variant in variants if len(variant) >= 2}
         if not variants:
@@ -604,7 +618,11 @@ class RealDataRepository:
             (*patterns, limit),
         ).fetchall()
         if len(direct_rows) >= min(limit, 3):
-            return [(r["category"], r["cnt"]) for r in direct_rows]
+            return self._rank_categories_for_user(
+                [(r["category"], r["cnt"]) for r in direct_rows],
+                user_id=user_id,
+                limit=limit,
+            )
 
         score_parts: list[str] = []
         where_parts: list[str] = []
@@ -634,7 +652,11 @@ class RealDataRepository:
             """,
             (*params, limit),
         ).fetchall()
-        return [(r["category"], r["cnt"]) for r in rows]
+        return self._rank_categories_for_user(
+            [(r["category"], r["cnt"]) for r in rows],
+            user_id=user_id,
+            limit=limit,
+        )
 
     def suggest_products(self, prefix: str, limit: int = 8) -> list[dict]:
         """Fast autocomplete: find products + categories matching prefix."""
@@ -737,6 +759,31 @@ class RealDataRepository:
             (user_id, profile_row["user_name"] or user_id, role),
         )
         self._conn.commit()
+
+    def _rank_categories_for_user(
+        self,
+        categories: list[tuple[str, int]],
+        user_id: str | None = None,
+        limit: int | None = None,
+    ) -> list[tuple[str, int]]:
+        if not categories:
+            return []
+        if not user_id:
+            return categories[:limit] if limit else categories
+
+        profile = self.get_user_profile(user_id)
+        affinity = profile.category_affinity or {}
+        ranked = sorted(
+            categories,
+            key=lambda item: (
+                1 if affinity.get(item[0], 0.0) > 0 else 0,
+                affinity.get(item[0], 0.0),
+                item[1],
+                item[0],
+            ),
+            reverse=True,
+        )
+        return ranked[:limit] if limit else ranked
 
     def _loads_json(self, value: str | None, default):
         if not value:
